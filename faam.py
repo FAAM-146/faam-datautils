@@ -136,7 +136,7 @@ class FAAMFlight(object):
                               calendar=self.time_calendar)
 
         _df.index = pd.date_range(start=_index_start, end=_index_end,
-                               periods=len(_df.index))
+                                  periods=len(_df.index))
 
         return _df
 
@@ -149,21 +149,36 @@ class FAAMFlight(object):
 
         _df.iplot(x=item[0], y=item[1:], mode='markers', kind='scatter')
 
-    def slrs(self, min_length=120, roll_lim=3, ps_lim=2, roll_mean=5):
-        # TODO: The windowing here assumes 1Hz
+    def slrs(self, min_length=120, max_length=None, roll_lim=3, ps_lim=2, roll_mean=5):
+
+        if max_length is not None and max_length <= min_length:
+            raise ValueError('max_length must be > min_length')
+
         _df = self[['WOW_IND', 'PS_RVSM', 'ROLL_GIN']]
 
+        # Set the windowing size based on the dataset frequency
+        if self.freq == 0:
+            window_size = min_length * 32
+            roll_mean *= 32
+        else:
+            window_size = min_length
+
+        # Drop any data while on the ground
         _df.loc[_df.WOW_IND == 1] = np.nan
         _df.dropna(inplace=True)
 
+        # Check the variance of the static pressure is sufficiently small
         _df['PS_C'] = _df.PS_RVSM.rolling(
-            min_length, center=True
+            window_size, center=True
         ).std() < ps_lim
 
+        # Check that the range of the GIN roll is inside acceptable limits
         _df['ROLL_C'] = _df.ROLL_GIN.rolling(roll_mean).mean().rolling(
-            min_length, center=True
+            window_size, center=True
         ).apply(np.ptp, raw=True) < roll_lim
 
+        # Identify discontiguous regions which pass the selection criteria
+        # and group them
         _df['_SLR'] = (_df['PS_C'] & _df['ROLL_C']).astype(int)
         _df['_SLRCNT'] = (_df._SLR.diff(1) != 0).astype('int').cumsum()
         groups = _df.groupby(_df._SLRCNT)
@@ -173,9 +188,12 @@ class FAAMFlight(object):
             _df = group[1]
             if _df._SLR.mean() == 0:
                 continue
-            if len(_df) < 120:
+            if len(_df) < window_size:
                 continue
+
+            # TODO: what if the slr that we've found is larger than max_length?
             slrs.append(group[1])
+
         return [i.index for i in slrs]
 
     def profiles(self, min_length=60, plot=False):
