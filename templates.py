@@ -1,0 +1,40 @@
+ge_template = """<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Folder>
+    <name>{fltnum}-{date}-Flight-Track</name>
+        <description>Flight-Track</description>
+        <open>0</open>
+        <description>
+           {date} {fltnum}
+        </description>
+<Placemark>
+  <name>{fltnum}</name>
+  <Style>
+    <LineStyle>
+      <color>a300bb00</color>
+      <width>5</width>
+    </LineStyle>
+    <PolyStyle>
+      <color>a2000000</color>
+      <fill>1</fill>
+      <outline>0</outline>
+    </PolyStyle>
+  </Style>
+  <MultiGeometry>
+    <Point>
+      <altitudeMode>absolute</altitudeMode>
+      <coordinates>
+        {start_point}
+      </coordinates>
+    </Point>
+    <LineString>
+      <extrude>1</extrude>
+      <tessellate>1</tessellate>
+      <altitudeMode>absolute</altitudeMode>
+      <coordinates>
+      {coords}
+      </coordinates>
+    </LineString>
+  </MultiGeometry>
+</Placemark>
+"""
