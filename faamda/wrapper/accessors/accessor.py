@@ -3,7 +3,6 @@ from .. import wrapper
 
 class DataAccessor(object):
     model = NetCDFDataModel
-    time_var = 'Time'
     regex = None
 
     def __init__(self, flight):
