@@ -32,6 +32,12 @@ CORE_REGEX = ('core_faam_(?P<date>[0-9]{8})_v00(?P<version>[0-9])_'
               '?(?P<freq>[1-9]*)h?z?.nc')
 
 def dict_merge(source, destination):
+    """ Recursively adds items from source into destination.
+
+    Assumes that keys in source dictionary do not exist in destination.
+    If a key already exists in destination it is overwritten with that from
+    source. That is, no value merging is done.
+    """
     for key, value in source.items():
         if isinstance(value, dict):
             node = destination.setdefault(key, {})
