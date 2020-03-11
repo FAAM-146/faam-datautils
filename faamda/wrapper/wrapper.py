@@ -50,17 +50,17 @@ class FAAMFile(object):
             if _match:
                 try:
                     self._version = int(_match['version'])
-                except (KeyError, ValueError):
+                except (IndexError, KeyError, ValueError):
                     self._version = None
 
                 try:
                     self._revision = int(_match['revision'])
-                except (KeyError, ValueError):
+                except (IndexError, KeyError, ValueError):
                     self._revision = None
 
                 try:
                     self._freq = int(_match['freq'])
-                except (KeyError, ValueError):
+                except (IndexError, KeyError, ValueError):
                     self._freq = FULL_FREQ
 
     def __str__(self):
@@ -83,9 +83,11 @@ class FAAMFile(object):
             return 'full'
         return self._freq
 
+
 class FAAM(object):
 
     def __init__(self, paths=None):
+
         self.flights = {}
         if paths is None:
             paths = []
@@ -101,6 +103,9 @@ class FAAM(object):
         return self.flights[item.lower()]
 
     def _load(self):
+        """Walk self._paths and match files with regex in self._accessors
+        
+        """
         for _path in self._paths:
             for root, dirs, files in os.walk(_path):
                 for _file in files:
