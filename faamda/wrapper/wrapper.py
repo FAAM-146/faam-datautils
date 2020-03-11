@@ -104,15 +104,23 @@ class FAAM(object):
 
     def _load(self):
         """Walk self._paths and match files with regex in self._accessors
-        
+
         """
         for _path in self._paths:
-            for root, dirs, files in os.walk(_path):
-                for _file in files:
-                    for hook, rex in self._accessors.items():
-                        match = rex.search(_file)
-                        if match:
-                            self.add_file(hook, root, match)
+
+            if os.path.isfile(_path):
+                for hook, rex in self._accessors.items():
+                    match = rex.search(os.path.basename(_path))
+                    if match:
+                        self.add_file(hook, os.path.dirname(_path), match)
+
+            else:
+                for root, dirs, files in os.walk(_path):
+                    for _file in files:
+                        for hook, rex in self._accessors.items():
+                            match = rex.search(_file)
+                            if match:
+                                self.add_file(hook, root, match)
 
     def add_file(self, hook, root, match):
         flightnum = match['flightnum']
