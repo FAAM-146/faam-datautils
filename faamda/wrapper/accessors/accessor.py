@@ -88,4 +88,4 @@ class DataAccessor(object):
         if len(_files) > 1:
             print('warning: duplicate files')
 
-        return _files[0]
+        return str(_files[0])
