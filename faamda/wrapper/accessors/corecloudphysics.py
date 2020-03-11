@@ -8,8 +8,8 @@ class CoreCloudPhysicsAccessor(DataAccessor):
     This file contains (as of Mar 2020) PCASP and CDP data
     """
     hook = 'ccp'
-    regex = ('core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
-             'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3}).nc')
+    regex = ('^core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
+             'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3}).nc$')
 
 
 @register_accessor
@@ -20,8 +20,8 @@ class CoreCloudPhysicsCIP15Accessor(DataAccessor):
               by input arg?
     """
     hook = 'ccpCIP15'
-    regex = ('core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
-             'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_cip15.nc')
+    regex = ('^core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
+             'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_cip15.nc$')
 
 
 @register_accessor
@@ -32,8 +32,8 @@ class CoreCloudPhysicsCIP25Accessor(DataAccessor):
               by input arg?
     """
     hook = 'ccpCIP25'
-    regex = ('core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
-             'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_cip25.nc')
+    regex = ('^core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
+             'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_cip25.nc$')
 
 
 @register_accessor
@@ -44,8 +44,8 @@ class CoreCloudPhysicsCIP100Accessor(DataAccessor):
               by input arg?
     """
     hook = 'ccpCIP100'
-    regex = ('core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
-             'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_cip100.nc')
+    regex = ('^core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
+             'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_cip100.nc$')
 
 
 @register_accessor
@@ -54,5 +54,5 @@ class CoreCloudPhysicsCASAccessor(DataAccessor):
 
     """
     hook = 'ccpCAS'
-    regex = ('core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
-             'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_cas.nc')
+    regex = ('^core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
+             'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_cas.nc$')
