@@ -52,17 +52,23 @@ class NetCDFDataModelXR(DataModel):
     .. TODO:: Could have option arg to return arrays only?
     """
 
+    def __init__(self):
+
+        self.time = None
+        self.groups = []    # should this be ['/']?
+
+
     def _get_time(self,grp=None):
         """
         If grp in [None,'','/'] then look for time in root group
 
         """
         try:
-            ds = xr.open_dataset(faam[flight].core.file,group=grp)
+            ds = xr.open_dataset(self.file,group=grp)
         except OSError as err:
             # Generally because grp is not a valid file group
             print(err.errno)
-            #self.time = None # leave undefined?
+            #self.time = None # or leave undefined?
         else:
             with ds:
                 # Find variable with standard_name 'time'. With CF compliant
@@ -70,6 +76,37 @@ class NetCDFDataModelXR(DataModel):
                 ds_t = ds.filter_by_attrs(standard_name='time')
                 time_var = list(ds_t.variables)[0]
                 self.time = ds_t[time_var]
+
+
+    def _get_groups(self, grp=None):
+        """Determines groups contained within grp of netCDF.
+        
+        Any additional groups are appended to the list of groups contained in
+        self.groups. These strings are the complete paths.
+
+        Args:
+            grp (:obj:`str`): Path to single group within the nc file. If grp
+                in [None,'','/'] then returns subgroups of root. Default is
+                None.
+        
+        Returns:
+            List of subgroup paths. These are the complete path from the root.
+            Returns empty list if no groups are found. 
+        
+        """
+        _groups = set(self.groups)
+
+        with Dataset(file, 'r') as ds:        
+            if grp in [None,'','/']:
+                _groups.update([ds[g].path for g in ds.groups.keys()])
+            else:
+                try:
+                    _groups.update(
+                        [ds[grp][g].path for g in ds[grp].groups.keys()])
+                except IndexError as err:
+                    print(err)
+
+        self.groups = list(_groups)
 
 
     def __getitem__(self, item, grp=None):
@@ -102,3 +139,35 @@ class NetCDFDataModelXR(DataModel):
 
         with Dataset(self.path, 'r') as f:
             pass
+
+
+    @property
+    def groups(self, grp=None):
+        """ Returns subgroups of grp.
+        
+        Args:
+            grp (:obj:`str`): Path to single group within the nc file. If grp
+                in [None,'','/'] then returns subgroups of root. Default is
+                None.
+        
+        Returns:
+            List of subgroup paths. These are the complete path from the root.
+            Returns empty list if no groups are found. 
+        """
+        
+        # If grp already in self.groups then just extract and return        
+        _groups = [g for g in self.groups \
+                   if grp.lower() == os.path.dirname(g).lower()]
+        if len(_groups) == 0:
+            _groups = self._get_groups(grp)
+        
+        return _groups
+
+
+    @property
+    def allgroups(self):
+        """Returns paths to all groups within a file
+
+        """
+
+        # haven't done this yet
