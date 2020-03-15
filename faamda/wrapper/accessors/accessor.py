@@ -1,8 +1,8 @@
-from ..models import NetCDFDataModel
+from ..models import CoreNetCDFDataModel
 from .. import wrapper
 
 class DataAccessor(object):
-    model = NetCDFDataModel
+    model = CoreNetCDFDataModel
     regex = None
 
     def __init__(self, flight):
