@@ -1,10 +1,16 @@
 import abc
-from netCDF4 import Dataset
+import datetime
+
+from netCDF4 import Dataset, num2date
+
+import numpy as np
+import pandas as pd
 import xarray as xr
 
 class DataModel(abc.ABC):
     def __init__(self, path):
         self.path = path
+        self.time = None
 
     @abc.abstractmethod
     def __getitem__(self, item):
@@ -18,20 +24,42 @@ class DataModel(abc.ABC):
         Return the dataset time array.
         """
 
-class NetCDFDataModel(DataModel):
+class CoreNetCDFDataModel(DataModel):
     def __getitem__(self, item):
-        raise RuntimeError('Need to do some work here!')
 
         if type(item) is str:
             items = [item]
         else:
             items = item
 
-        dfs = []
+        with Dataset(self.path, 'r') as nc:
+            max_freq = max([nc[i].frequency for i in items])
+            df = pd.DataFrame(index=self._time_at(max_freq))
 
-        with Dataset(self.path, 'r') as f:
-            pass
+            for item in items:
+                _data = nc[item][:].ravel()
+                _time = self._time_at(nc[item].frequency)
+                df.loc[_time, item] = _data
 
+        return df
+
+    def _time_at(self, freq):
+        if self.time is None:
+            self._get_time()
+
+        time_start = num2date(self.time[0], units=self.time_units)
+        time_end = num2date(
+            self.time[-1] + 1,
+            units=self.time_units
+        )
+
+        index = pd.date_range(
+            start=time_start,
+            end=time_end,
+            freq='{0:0.0f}N'.format(1e9/freq)
+        )
+
+        return index[:-1]
 
     def _get_time(self):
         with Dataset(self.path, 'r') as nc:
