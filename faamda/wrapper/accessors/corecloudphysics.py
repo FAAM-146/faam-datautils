@@ -8,6 +8,7 @@ class CoreCloudPhysicsAccessor(DataAccessor):
     This file contains (as of Mar 2020) PCASP and CDP data
     """
     hook = 'ccp'
+    model = NetCDFDataModel
     regex = ('^core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
              'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3}).nc$')
 
@@ -20,6 +21,7 @@ class CoreCloudPhysicsCIP15Accessor(DataAccessor):
               by input arg?
     """
     hook = 'ccpCIP15'
+    model = NetCDFDataModel
     regex = ('^core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
              'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_cip15.nc$')
 
@@ -32,6 +34,7 @@ class CoreCloudPhysicsCIP25Accessor(DataAccessor):
               by input arg?
     """
     hook = 'ccpCIP25'
+    model = NetCDFDataModel
     regex = ('^core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
              'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_cip25.nc$')
 
@@ -44,6 +47,7 @@ class CoreCloudPhysicsCIP100Accessor(DataAccessor):
               by input arg?
     """
     hook = 'ccpCIP100'
+    model = NetCDFDataModel
     regex = ('^core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
              'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_cip100.nc$')
 
@@ -54,5 +58,6 @@ class CoreCloudPhysicsCASAccessor(DataAccessor):
 
     """
     hook = 'ccpCAS'
+    model = NetCDFDataModel
     regex = ('^core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
              'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_cas.nc$')
