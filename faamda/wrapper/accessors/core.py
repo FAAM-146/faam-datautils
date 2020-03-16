@@ -15,5 +15,9 @@ class CoreFltSumAccessor(DataAccessor):
     .. TODO:: Should extension be an input arg to cope with csv/txt versions?
     """
     hook = 'corefltsum'
+    # Override default model in accessor.DataAccessor()
+    model = FltSumDataModel
     regex = ('^flight-sum_faam_(?P<date>\d{8})_'
              'r(?P<revision>\d+)_(?P<flightnum>[a-z]\d{3}).csv$')
+
+
