@@ -1,4 +1,4 @@
-from ..models import CoreNetCDFDataModel
+from ..models import *
 from .. import wrapper
 
 class DataAccessor(object):
