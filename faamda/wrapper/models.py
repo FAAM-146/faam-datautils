@@ -7,6 +7,12 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+
+__all__ = ['CoreNetCDFDataModel',
+           'NetCDFDataModel',
+           'FltSumDataModel']
+
+
 class DataModel(abc.ABC):
     def __init__(self, path):
         self.path = path
@@ -25,6 +31,11 @@ class DataModel(abc.ABC):
         """
 
 class CoreNetCDFDataModel(DataModel):
+    """Returns requested data or metadata from path
+
+    Core netCDF specific model to deal with multi-frequency variables
+
+    """
     def __getitem__(self, item):
 
         if type(item) is str:
@@ -71,13 +82,18 @@ class CoreNetCDFDataModel(DataModel):
                 self.time_calendar = None
 
 
-class NetCDFDataModelXR(DataModel):
+class NetCDFDataModel(DataModel):
     """Returns requested data or metadata from path
 
-    This class uses xarray to return a dataArray or dataset with full
-    attributes as in the netCDF.
-
-    .. TODO:: Could have option arg to return arrays only?
+    The form of the returned data is selectable by the user and can range
+    from a numpy array in the simplest case to a xarray.dataset which
+    includes all of the group and variable attributes. Properties that
+    return data will make some sort of decision about what type of data
+    to return. If;
+        attribute then return value
+        attributes then return dictionary of key:values
+        1-dim variable/s then return pandas dataframe [default]
+        n-dim variable/s then return xarray dataset
     """
 
     def __init__(self):
@@ -108,7 +124,7 @@ class NetCDFDataModelXR(DataModel):
 
     def _get_groups(self, grp=None):
         """Determines groups contained within grp of netCDF.
-        
+
         Any additional groups are appended to the list of groups contained in
         self.groups. These strings are the complete paths.
 
@@ -116,15 +132,15 @@ class NetCDFDataModelXR(DataModel):
             grp (:obj:`str`): Path to single group within the nc file. If grp
                 in [None,'','/'] then returns subgroups of root. Default is
                 None.
-        
+
         Returns:
             List of subgroup paths. These are the complete path from the root.
-            Returns empty list if no groups are found. 
-        
+            Returns empty list if no groups are found.
+
         """
         _groups = set(self.groups)
 
-        with Dataset(file, 'r') as ds:        
+        with Dataset(file, 'r') as ds:
             if grp in [None,'','/']:
                 _groups.update([ds[g].path for g in ds.groups.keys()])
             else:
@@ -156,7 +172,7 @@ class NetCDFDataModelXR(DataModel):
                 return None
 
         return ds_attr
- 
+
 
     def _get_var(self, var, grp=None):
         """Reads requested variable/s from file/group or None if nonexistant.
@@ -179,7 +195,15 @@ class NetCDFDataModelXR(DataModel):
 
         return ds_var
 
-    
+### No workie!! __getitem__ cannot accept args
+
+"""
+So __getitem__ will return data in a default structure based on what was
+asked for. Write a series of getters that allow the user to include
+arguments to request the desired output format.
+
+"""
+
     def __getitem__(self, item, grp=None, squeeze=True):
         """Returns item/s from file/group, may be attribute/s or variable/s.
 
@@ -187,7 +211,7 @@ class NetCDFDataModelXR(DataModel):
             Note that requesting both a variable(s) and an attribute(s) does not
             make any sense. If requesting a variable, a dataset is returned. If
             requesting an attribute, the value of that attribute is returned. So
-            these two are incompatible. If both variables and attributes are 
+            these two are incompatible. If both variables and attributes are
             included in item then the attribute request is discarded.
 
         .. note::
@@ -221,7 +245,7 @@ class NetCDFDataModelXR(DataModel):
         else:
             items = [os.path.join(grp, i) for i in item]
         del grp
-        
+
         # Get list of unique groups. Unfortunately open_dataset must be called
         # for each different group.
         _grps, _items = zip(*sorted([os.path.split(i_) for i_ in items],
@@ -242,7 +266,7 @@ class NetCDFDataModelXR(DataModel):
             # No variables found. Check for attributes
 
             ### TODO:: This is not a very good way of doing this...
-            
+
             for idx, grp in zip(_grps_idx, _grps_uniq):
                 # Loop through each group and pass all of the items from that group
                 iteml.append(self._get_attr([_items[i] for i in idx],
@@ -261,33 +285,31 @@ class NetCDFDataModelXR(DataModel):
             if squeeze and len(iteml) == 1:
                 # If only single dataset then extract from list and return
                 return iteml[0]
-        
+
         return iteml
 
-
-
-
+### No workie!! Properties cannot accept args
 
     @property
     def groups(self, grp=None):
         """ Returns subgroups of grp.
-        
+
         Args:
             grp (:obj:`str`): Path to single group within the nc file. If grp
                 in [None,'','/'] then returns subgroups of root. Default is
                 None.
-        
+
         Returns:
             List of subgroup paths. These are the complete path from the root.
-            Returns empty list if no groups are found. 
+            Returns empty list if no groups are found.
         """
-        
-        # If grp already in self.groups then just extract and return        
+
+        # If grp already in self.groups then just extract and return
         _groups = [g for g in self.groups \
                    if grp.lower() == os.path.dirname(g).lower()]
         if len(_groups) == 0:
             _groups = self._get_groups(grp)
-        
+
         return _groups
 
 
@@ -304,3 +326,12 @@ class NetCDFDataModelXR(DataModel):
             for value in top.groups.values():
                 for children in walktree(value):
                     yield children
+
+
+
+class FltSumDataModel(DataModel):
+    """
+    This is the data model for the models.CoreFltSumAccessor()
+
+    """
+    pass
