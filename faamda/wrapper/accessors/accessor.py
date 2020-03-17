@@ -34,13 +34,8 @@ class DataAccessor(object):
         DataModel.
 
         """
-        try:
-            _model = self.model(self.file)
-            yield _model.handle_open()
-        except Exception:
-            raise
-        finally:
-            _model.handle_close()
+        with self.model(self.file) as h:
+            yield h
 
     @property
     def _filtered_files(self):

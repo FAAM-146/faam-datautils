@@ -21,6 +21,18 @@ class DataModel(abc.ABC):
         self.handle = None
 
     @abc.abstractmethod
+    def __enter__(self):
+        """
+        Context manager entry
+        """
+
+    @abc.abstractmethod
+    def __exit__(self, *args):
+        """
+        Context manager exit
+        """
+
+    @abc.abstractmethod
     def __getitem__(self, item):
         """
         Return a variable.
@@ -30,18 +42,6 @@ class DataModel(abc.ABC):
     def _get_time(self):
         """
         Return the dataset time array.
-        """
-
-    @abc.abstractmethod
-    def handle_open(self):
-        """
-        Open and return the file handler
-        """
-
-    @abc.abstractmethod
-    def handle_close(self):
-        """
-        Close the file handler
         """
 
 class CoreNetCDFDataModel(DataModel):
@@ -95,11 +95,11 @@ class CoreNetCDFDataModel(DataModel):
             except AttributeError:
                 self.time_calendar = None
 
-    def handle_open(self):
+    def __enter__(self):
         self.handle = Dataset(self.path, 'r')
         return self.handle
 
-    def handle_close(self):
+    def __exit__(self, *args):
         self.handle.close()
         self.handle = None
 
