@@ -1,3 +1,5 @@
+import contextlib
+
 from ..models import *
 from .. import wrapper
 
@@ -23,6 +25,22 @@ class DataAccessor(object):
         self._version = max([i.version for i in self._filtered_files])
         self._revision = max([i.revision for i in self._filtered_files])
         self._freq = max([i.freq for i in self._filtered_files])
+
+    @property
+    @contextlib.contextmanager
+    def raw(self):
+        """
+        Defines a context manager to access the file handler in the underlying
+        DataModel.
+
+        """
+        try:
+            _model = self.model(self.file)
+            yield _model.handle_open()
+        except Exception:
+            raise
+        finally:
+            _model.handle_close()
 
     @property
     def _filtered_files(self):

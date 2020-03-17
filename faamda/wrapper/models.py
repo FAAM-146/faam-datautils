@@ -18,6 +18,7 @@ class DataModel(abc.ABC):
     def __init__(self, path):
         self.path = path
         self.time = None
+        self.handle = None
 
     @abc.abstractmethod
     def __getitem__(self, item):
@@ -29,6 +30,18 @@ class DataModel(abc.ABC):
     def _get_time(self):
         """
         Return the dataset time array.
+        """
+
+    @abc.abstractmethod
+    def handle_open(self):
+        """
+        Open and return the file handler
+        """
+
+    @abc.abstractmethod
+    def handle_close(self):
+        """
+        Close the file handler
         """
 
 class CoreNetCDFDataModel(DataModel):
@@ -81,6 +94,14 @@ class CoreNetCDFDataModel(DataModel):
                 self.time_calendar = nc['Time'].calendar
             except AttributeError:
                 self.time_calendar = None
+
+    def handle_open(self):
+        self.handle = Dataset(self.path, 'r')
+        return self.handle
+
+    def handle_close(self):
+        self.handle.close()
+        self.handle = None
 
 
 class NetCDFDataModel(DataModel):
