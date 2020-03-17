@@ -1,5 +1,10 @@
+from ..models import *
 from .register import register_accessor
 from .accessor import DataAccessor
+
+__all__ = ['CoreAccessor',
+           'CoreFltSumAccessor']
+
 
 @register_accessor
 class CoreAccessor(DataAccessor):
@@ -12,7 +17,6 @@ class CoreAccessor(DataAccessor):
 class CoreFltSumAccessor(DataAccessor):
     """Accessor for FAAM core flight summary file
 
-    .. TODO:: Should extension be an input arg to cope with csv/txt versions?
     """
     hook = 'corefltsum'
     # Override default model in accessor.DataAccessor()
