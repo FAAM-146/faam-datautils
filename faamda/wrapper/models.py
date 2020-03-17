@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+import pdb
 
 __all__ = ['CoreNetCDFDataModel',
            'NetCDFDataModel',
@@ -96,31 +97,46 @@ class NetCDFDataModel(DataModel):
         n-dim variable/s then return xarray dataset
     """
 
-    def __init__(self):
+    # def __init__(self):
 
-        self.time = None
-        self.groups = []    # should this be ['/']?
+    #     self.time = None
+    #     self.groups = []    # should this be ['/']?
 
 
     def _get_time(self,grp=None):
-        """
-        If grp in [None,'','/'] then look for time in root group
+        """Sets self.time property based on time coordinate of dataset group
+        
+        Args:
+            grp (:obj:`str`): Path to single group within the nc file. If grp
+                in [None,'','/'] then returns time coordinate of root otherwise
+                returns time coord of grp. Default is None.
 
         """
+
+        if grp in [None,'','/']:
+            grp = None
+
         try:
-            ds = xr.open_dataset(self.file,group=grp)
+            ds = xr.open_dataset(self.path,group=grp)
         except OSError as err:
             # Generally because grp is not a valid file group
             print(err.errno)
             #self.time = None # or leave undefined?
         else:
             with ds:
-                # Find variable with standard_name 'time'. With CF compliant
-                # files this shall cope with different cases of variable name.
-                ds_t = ds.filter_by_attrs(standard_name='time')
-                time_var = list(ds_t.variables)[0]
-                self.time = ds_t[time_var]
+                # Will only return time/Time if it is a coordinate variable
+                time_var = [v for v in ds.coords if 'time' in v.lower()]
+                
+                # What to do if there is more than one? Is this possible?
+                self.time = ds[time_var[0]]
 
+
+    def time(self,grp=None):
+
+        if self.time == None:
+            self._get_time(grp=grp)
+
+        return self.time
 
     def _get_groups(self, grp=None):
         """Determines groups contained within grp of netCDF.
@@ -159,7 +175,7 @@ class NetCDFDataModel(DataModel):
         """
 
         try:
-            ds = xr.open_dataset(file, group=grp) # self.file?
+            ds = xr.open_dataset(self.path, group=grp) # self.file?
         except OSError as err:
             # Generally because grp is not a valid file group
             print(err.errno)
@@ -180,7 +196,7 @@ class NetCDFDataModel(DataModel):
         """
 
         try:
-            ds = xr.open_dataset(file, group=grp) # self.file?
+            ds = xr.open_dataset(self.path, group=grp) # self.file?
         except OSError as err:
             # Generally because grp is not a valid file group
             print(err.errno)
@@ -195,16 +211,21 @@ class NetCDFDataModel(DataModel):
 
         return ds_var
 
-### No workie!! __getitem__ cannot accept args
 
-"""
-So __getitem__ will return data in a default structure based on what was
-asked for. Write a series of getters that allow the user to include
-arguments to request the desired output format.
+    def __getitem__(self, item):
 
-"""
+        return 'fred'
 
-    def __getitem__(self, item, grp=None, squeeze=True):
+    ### No workie!! __getitem__ cannot accept args
+
+    """
+    So __getitem__ will return data in a default structure based on what was
+    asked for. Write a series of getters that allow the user to include
+    arguments to request the desired output format.
+
+    """
+
+    def _get(self, item, grp=None, fmt=None, squeeze=True):
         """Returns item/s from file/group, may be attribute/s or variable/s.
 
         .. warning::
@@ -226,6 +247,13 @@ arguments to request the desired output format.
                 file root. The same path is prepended to all items if there
                 are more than one in addition to any path information in the
                 item string/s.
+            fmt (:boj:`str`): Format of nc file output returned. None [default]
+                enables automatic attempt to guess best format.            
+
+
+
+            Need to work squeeze
+
             squeeze (:obj:`boolean`): If True [default] then returns single
                 dataset with variable/s or None if no variables found. If False
                 then returns list, empty or len==1 in these cases. If more than
@@ -237,6 +265,13 @@ arguments to request the desired output format.
                 variable or attribute then returns single dataset or attribute
                 value.
         """
+        
+        guess_fmt = {'str': {'in': [lambda i: type(i) in [str]],
+                             'out': lambda o: str(o)},
+                     'df':  {'in': [lambda i: type(i) in []],
+                             'out': lambda o: o}
+                    }
+
         if grp in [None,'','/']:
             grp = ''
 
