@@ -44,6 +44,19 @@ class DataModel(abc.ABC):
         Return the dataset time array.
         """
 
+    @abc.abstractmethod
+    def get(self):
+        """
+        Get some data from the models file
+        """
+
+    @abc.abstractmethod
+    def find(self):
+        """
+        Return what is available in the model's file, given some hint of what
+        to look for
+        """
+
 class CoreNetCDFDataModel(DataModel):
     """Returns requested data or metadata from path
 
@@ -102,6 +115,12 @@ class CoreNetCDFDataModel(DataModel):
     def __exit__(self, *args):
         self.handle.close()
         self.handle = None
+
+    def find(self, what):
+        raise NotImplementedError
+
+    def get(self, *args, **kwargs):
+        raise NotImplementedError
 
 
 class NetCDFDataModel(DataModel):

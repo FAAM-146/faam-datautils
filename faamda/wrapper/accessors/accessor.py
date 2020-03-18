@@ -26,6 +26,19 @@ class DataAccessor(object):
         self._revision = max([i.revision for i in self._filtered_files])
         self._freq = max([i.freq for i in self._filtered_files])
 
+    def get(self, *args, **kwargs):
+        """
+        Get some sort of data from the DataModel. Implementation is down to the
+        DataModel.
+        """
+        return self.model(self.file).get(*args, **kwargs)
+
+    def find(self, *args, **kwargs):
+        """
+        Return what's available in the data file, via the DataModel.
+        """
+        return self.model(self.file).find(*args, **kwargs)
+
     @property
     @contextlib.contextmanager
     def raw(self):
