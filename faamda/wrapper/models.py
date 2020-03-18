@@ -39,12 +39,6 @@ class DataModel(abc.ABC):
         """
 
     @abc.abstractmethod
-    def _get_time(self):
-        """
-        Return the dataset time array.
-        """
-
-    @abc.abstractmethod
     def get(self):
         """
         Get some data from the models file

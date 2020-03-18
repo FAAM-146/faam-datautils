@@ -18,9 +18,6 @@ class DataAccessor(object):
     def __getitem__(self, item):
         return self.model(self.file)[item]
 
-    def _get_time(self):
-        self.model(self.file)._get_time()
-
     def _autoset_file(self):
         self._version = max([i.version for i in self._filtered_files])
         self._revision = max([i.revision for i in self._filtered_files])
