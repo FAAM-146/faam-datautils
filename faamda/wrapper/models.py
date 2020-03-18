@@ -103,6 +103,42 @@ class NetCDFDataModel(DataModel):
     #     self.groups = []    # should this be ['/']?
 
 
+    
+    def _get_ds(self,grp=None):
+        """Sets entire dataset for group.
+
+        Note that this uses load_dataset so that the nc file is closed
+        immediately.
+
+        """
+        if grp in [None,'','/']:
+            grp = None
+
+        try:
+            self.ds = xr.load_dataset(self.path,group=grp)
+        except OSError as err:
+            # Generally because grp is not a valid file group
+            print(err.errno)
+            #self.time = None # or leave undefined?
+
+
+    def _get_df(self,grp=None):
+        """Sets entire dataframe for group.
+
+        Just converts a xr.dataset into a pd.dataframe. Some file attributes
+        shall be lost in the translation.
+
+        """
+        self.df = self._get_ds(grp).to_dataframe()
+
+
+    def _get_dims(self,grp=None):
+        """Find names of dimensions in dataset group
+
+        """
+
+
+
     def _get_time(self,grp=None):
         """Sets self.time property based on time coordinate of dataset group
         
@@ -137,6 +173,7 @@ class NetCDFDataModel(DataModel):
             self._get_time(grp=grp)
 
         return self.time
+
 
     def _get_groups(self, grp=None):
         """Determines groups contained within grp of netCDF.
@@ -361,6 +398,12 @@ class NetCDFDataModel(DataModel):
             for value in top.groups.values():
                 for children in walktree(value):
                     yield children
+
+
+    @property
+    def dims(self):
+        return self._dims
+    
 
 
 
