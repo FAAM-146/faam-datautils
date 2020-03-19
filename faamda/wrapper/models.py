@@ -137,7 +137,125 @@ class NetCDFDataModel(DataModel):
     #     self.groups = []    # should this be ['/']?
 
 
-    
+    def _uniq_grps(strs):
+        """ Returns list of unique groups/paths from list of strs
+
+        xarray.open_dataset must be called individualy on each group in a file
+        which is a bit of a pain.
+
+        Args:
+            strs (:obj:list of `str`): List of strings to obtain paths from.
+
+        Returns:
+            grps_uniq (:obj:`list`): List of unique group paths
+            grps_idx (:obj:`list`): List of strs indicies associated with each
+                group in grps_unique.
+        """
+
+        if type(strs) in [str]:
+            strs = [strs[::]]
+
+        # Get list of unique groups.
+        _grps, _strs = zip(*sorted([os.path.split(s_) for s_ in strs],
+                                    key=lambda g: g[0]))
+
+        _grps = [g.replace('/','') for g in _grps[::]]
+        grps_uniq = set(_grps)
+        grps_idx = [[i for i,x in enumerate(_grps)  if x==y] for y in grps_uniq]
+
+        return grps_uniq, grps_idx
+
+
+    def find(self, what, filterby=None):
+        """Finds requested features in file and returns those found
+
+        Args:
+            what (:obj:`str`): Type of feature to find in self. Must be in
+                ['variables', 'vars', 'attributes', 'attrs', 'groups', 'grps'].
+                Note that if requesting feature in a subgroup of root then the
+                path should be prepended to the string,
+                eg 'data_group/variables'.
+
+                what == 'attrs' probably is not very useful. Probably better to
+                use `get` as will return None if attribute not found.
+
+            filterby (:obj:`str`): Substring to filter the returned keys by.
+                For attributes and groups this shall be a simple regex on the
+                name of the attributes/groups. For variables it shall also
+                include a `filter_by_attrs()` call to search the `long_name` and
+                `standard_name` attributes.
+
+            .. example::
+                find('variables','water vapour') returns ['WVSS2F_VMR',
+                'WVSS2F_VMR_FLAG','VMR_CR2','VMR_CR2_FLAG','VMR_C_U',
+                'VMR_C_U_FLAG'] from the core nc file as 'water vapour' is
+                included in an attribute.
+
+
+        Returns:
+            List of variable, attribute, or group names or [] if nothing found.
+
+        """
+
+        # Obtain any path information from `what` arg
+        grp, _ = _uniq_grps(what)
+
+        with Dataset(file, 'r') as ds:
+
+            if grp in [None,'','/']:
+                _ds = ds
+            else:
+                try:
+                    _ds = ds[grp]
+                except IndexError as err:
+                    print(err)
+                    return []
+
+            if what.lower() in ['variables', 'vars']:
+                # Search for variables and filter by long_name, standard_name, and variable name
+                attr_filter = lambda v: v != None and filterby.lower() in v.lower()
+
+                vars_ln = [v.name for v in _ds.get_variables_by_attributes(long_name = attr_filter)]
+                try:
+                    vars_ln = [os.path.join(v.group().name, v) for v in vars_ln[::]]
+                except KeyError as err:
+                    # group is 'empty' as is the root so no name attribute
+                    # is there a better catch for this?
+                    pass
+
+                vars_sn = [v.name for v in _ds.get_variables_by_attributes(standard_name = attr_filter)]
+                try:
+                    vars_sn = [os.path.join(v.group().name, v) for v in vars_sn[::]]
+                except KeyError as err:
+                    pass
+
+                vars_vn = [v.name for v in _ds.variables if filterby.lower() in v.name.lower()]
+                try:
+                    vars_vn = [os.path.join(v.group().name, v) for v in vars_vn[::]]
+                except KeyError as err:
+                    pass
+
+                return list(set([v for v in vars_ln]).union([v for v in vars_sn],
+                                                            [v for v in vars_vn]))
+
+
+            if what.lower() in ['attributes', 'attrs']:
+
+                if filterby:
+                    return [a for a in _ds.ncattrs() is filterby.lower() in a.lower()]
+
+                else:
+                    return _ds.ncattrs()
+
+            if what.lower() in ['groups', 'grps']:
+
+                if filterby:
+                    return [g for g in _ds.groups().keys() is filterby.lower() in g.lower()]
+
+                else:
+                    return list(_ds.groups().keys())
+
+
     def _get_ds(self,grp=None):
         """Sets entire dataset for group.
 
@@ -175,7 +293,7 @@ class NetCDFDataModel(DataModel):
 
     def _get_time(self,grp=None):
         """Sets self.time property based on time coordinate of dataset group
-        
+
         Args:
             grp (:obj:`str`): Path to single group within the nc file. If grp
                 in [None,'','/'] then returns time coordinate of root otherwise
@@ -196,7 +314,7 @@ class NetCDFDataModel(DataModel):
             with ds:
                 # Will only return time/Time if it is a coordinate variable
                 time_var = [v for v in ds.coords if 'time' in v.lower()]
-                
+
                 # What to do if there is more than one? Is this possible?
                 self.time = ds[time_var[0]]
 
@@ -319,7 +437,7 @@ class NetCDFDataModel(DataModel):
                 are more than one in addition to any path information in the
                 item string/s.
             fmt (:boj:`str`): Format of nc file output returned. None [default]
-                enables automatic attempt to guess best format.            
+                enables automatic attempt to guess best format.
 
 
 
@@ -336,7 +454,7 @@ class NetCDFDataModel(DataModel):
                 variable or attribute then returns single dataset or attribute
                 value.
         """
-        
+
         guess_fmt = {'str': {'in': [lambda i: type(i) in [str]],
                              'out': lambda o: str(o)},
                      'df':  {'in': [lambda i: type(i) in []],
@@ -437,7 +555,7 @@ class NetCDFDataModel(DataModel):
     @property
     def dims(self):
         return self._dims
-    
+
 
 
 
