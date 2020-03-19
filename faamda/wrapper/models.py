@@ -39,9 +39,16 @@ class DataModel(abc.ABC):
         """
 
     @abc.abstractmethod
-    def _get_time(self):
+    def get(self):
         """
-        Return the dataset time array.
+        Get some data from the models file
+        """
+
+    @abc.abstractmethod
+    def find(self):
+        """
+        Return what is available in the model's file, given some hint of what
+        to look for
         """
 
 class CoreNetCDFDataModel(DataModel):
@@ -102,6 +109,12 @@ class CoreNetCDFDataModel(DataModel):
     def __exit__(self, *args):
         self.handle.close()
         self.handle = None
+
+    def find(self, what):
+        raise NotImplementedError
+
+    def get(self, *args, **kwargs):
+        raise NotImplementedError
 
 
 class NetCDFDataModel(DataModel):
