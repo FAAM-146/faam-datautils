@@ -166,6 +166,175 @@ class NetCDFDataModel(DataModel):
         return grps_uniq, grps_idx
 
 
+    def _find_attrs(self, grp=None, filterby=None):
+        """Find attribute names in group grp and filter by filterby
+
+        Args:
+            grp (:obj:`str`): Path to single group, default is None or the
+                file root.
+            filterby (:obj:`str`): Substring to filter the returned keys by.
+                For attributes and groups this shall be a simple regex on the
+                name of the attributes/groups. For variables it shall also
+                include a `filter_by_attrs()` call to search the `long_name` and
+                `standard_name` attributes.
+
+        Returns:
+            List of attribute names, with full path, or [] if nothing found.
+
+        """
+
+        with Dataset(self.path, 'r') as ds:
+            # Should opening file be in calling method?
+            if grp in [None,'','/']:
+                _ds = ds
+            else:
+                try:
+                    _ds = ds[grp]
+                except IndexError as err:
+                    print(err)
+                    return []
+
+            if filterby:
+                return [a for a in _ds.ncattrs() if filterby.lower() in a.lower()]
+            else:
+                return _ds.ncattrs()
+
+
+    def _get_attrs(self, attrs, fmt=None, squeeze=True):
+        """Returns attributes, simples...if only.
+
+        This is designed for root/group attributes. If variable attributes are
+        required then use `self._get_variables()` as the returned variables
+        include their attributes.
+
+        Args:
+            attrs (:obj:`str` or :obj:`list`): Single attribute or list of
+                attribute names to read. The attribute string/s must include
+                the full path if groups are involved. If `attrs` in
+                ['*','group/all'] then all attributes in the root and in group
+                respectively that pass filterby are returned.
+            fmt (:boj:`str`): Format of nc file output returned. None [default]
+                enables automatic attempt to guess best format.
+
+                Not actually used for attributes?
+
+            squeeze (:obj:`boolean`): If True [default] then returns single
+                dataset with variable/s or None if no variables found. If False
+                then returns list, empty or len==1 in these cases. If more than
+                one dataset is found then list of datasets is always returned.
+
+        Returns:
+            Dictionary of attribute names, with full path, and values. Empty
+            if no matching attributes found. If squeeze is True and only single
+            attribute then just value of attribute returned.
+
+        .. code-block:: python
+
+            >>> self._get_attrs(['institution'])
+            'FAAM'
+            >>> self._get_attrs(['institution','Title'])
+            {'institution': 'FAAM', 'Title': 'Data from c224 on 11-Feb-2020'}
+            >>> self._get_attrs('institution',squeeze=False)
+            {'institution': 'FAAM'}
+
+        """
+        if type(attrs) in [str]:
+            _attrs = [attrs]
+        else:
+            _attrs = attrs
+
+        # Obtain path information from attribute strings
+        grps, attr_idx = _uniq_grps(_attrs)
+
+        with Dataset(self.path, 'r') as ds:
+            attr_d = {}
+            for attr_l, grp in zip(_attrs[attr_idx], grps):
+                if grp in [None,'','/']:
+                    _ds = ds
+                else:
+                    try:
+                        _ds = ds[grp]
+                    except IndexError as err:
+                        print(err)
+                        continue
+
+            attr_d.update({a:_ds.getncattr(os.path.basename(a)) for a
+                           in attrs_l if a in _ds.ncattrs()})
+
+        if squeeze and len(attr_d) == 1:
+            return attr_d.value:
+        else:
+            return attr_d
+
+
+    def _find_dims(self, grp=None, filterby=None):
+        """Find dimension names in group grp and filter by filterby
+
+        Args:
+            grp (:obj:`str`): Path to single group, default is None or the
+                file root.
+            filterby (:obj:`str`): Substring to filter the returned keys by.
+                For attributes and groups this shall be a simple regex on the
+                name of the attributes/groups. For variables it shall also
+                include a `filter_by_attrs()` call to search the `long_name` and
+                `standard_name` attributes.
+
+        Returns:
+            List of dimension names, with full path, or [] if nothing found.
+
+        """
+
+        with Dataset(self.path, 'r') as ds:
+            # Should opening file be in calling method?
+            if grp in [None,'','/']:
+                _ds = ds
+            else:
+                try:
+                    _ds = ds[grp]
+                except IndexError as err:
+                    print(err)
+                    return []
+
+            if filterby:
+                return [d for d in _ds.dimensions.keys() if filterby.lower() in d.lower()]
+            else:
+                return list(_ds.dimensions.keys())
+
+
+    def _find_grps(self, grp=None, filterby=None):
+        """Find group names in group grp and filter by filterby
+
+        Args:
+            grp (:obj:`str`): Path to single group, default is None or the
+                file root.
+            filterby (:obj:`str`): Substring to filter the returned keys by.
+                For attributes and groups this shall be a simple regex on the
+                name of the attributes/groups. For variables it shall also
+                include a `filter_by_attrs()` call to search the `long_name` and
+                `standard_name` attributes.
+
+        Returns:
+            List of group names, with full path, or [] if nothing found.
+
+        """
+
+        with Dataset(self.path, 'r') as ds:
+            # Should opening file be in calling method?
+            if grp in [None,'','/']:
+                _ds = ds
+            else:
+                try:
+                    _ds = ds[grp]
+                except IndexError as err:
+                    print(err)
+                    return []
+
+            if filterby:
+                return [g for g in _ds.groups.keys() if filterby.lower() in g.lower()]
+            else:
+                return list(_ds.groups.keys())
+
+
     def _find_vars(self, grp=None, filterby=None):
         """Find variable names in group grp and filter by filterby
 
@@ -221,75 +390,6 @@ class NetCDFDataModel(DataModel):
                                                         [v for v in vars_vn]))
 
 
-    def _find_attrs(self, grp=None, filterby=None):
-        """Find attribute names in group grp and filter by filterby
-
-        Args:
-            grp (:obj:`str`): Path to single group, default is None or the
-                file root.
-            filterby (:obj:`str`): Substring to filter the returned keys by.
-                For attributes and groups this shall be a simple regex on the
-                name of the attributes/groups. For variables it shall also
-                include a `filter_by_attrs()` call to search the `long_name` and
-                `standard_name` attributes.
-
-        Returns:
-            List of attribute names, with full path, or [] if nothing found.
-
-        """
-
-        with Dataset(self.path, 'r') as ds:
-            # Should opening file be in calling method?
-            if grp in [None,'','/']:
-                _ds = ds
-            else:
-                try:
-                    _ds = ds[grp]
-                except IndexError as err:
-                    print(err)
-                    return []
-
-            if filterby:
-                return [a for a in _ds.ncattrs() if filterby.lower() in a.lower()]
-            else:
-                return _ds.ncattrs()
-
-
-    def _find_grps(self, grp=None, filterby=None):
-        """Find group names in group grp and filter by filterby
-
-        Args:
-            grp (:obj:`str`): Path to single group, default is None or the
-                file root.
-            filterby (:obj:`str`): Substring to filter the returned keys by.
-                For attributes and groups this shall be a simple regex on the
-                name of the attributes/groups. For variables it shall also
-                include a `filter_by_attrs()` call to search the `long_name` and
-                `standard_name` attributes.
-
-        Returns:
-            List of group names, with full path, or [] if nothing found.
-
-        """
-
-        with Dataset(self.path, 'r') as ds:
-            # Should opening file be in calling method?
-            if grp in [None,'','/']:
-                _ds = ds
-            else:
-                try:
-                    _ds = ds[grp]
-                except IndexError as err:
-                    print(err)
-                    return []
-
-            if filterby:
-                return [g for g in _ds.groups().keys() if filterby.lower() in g.lower()]
-            else:
-                return list(_ds.groups().keys())
-
-
-
 
     def find(self, what, filterby=None):
         """Finds requested features in file and returns those found
@@ -299,7 +399,8 @@ class NetCDFDataModel(DataModel):
                 ['variables', 'vars', 'attributes', 'attrs', 'groups', 'grps'].
                 Note that if requesting feature in a subgroup of root then the
                 path should be prepended to the string,
-                eg 'data_group/variables'.
+                eg 'data_group/variables' will return variable names in
+                /data_group group.
 
                 what == 'attrs' probably is not very useful. Probably better to
                 use `get` as will return None if attribute not found.
@@ -326,25 +427,23 @@ class NetCDFDataModel(DataModel):
         grp, _ = _uniq_grps(what)
 
         if what.lower() in ['variables', 'vars']:
-            return self._find_vars(grp, filterby):
+            return self._find_vars(grp, filterby)
 
         elif what.lower() in ['attributes', 'attrs']:
-            return self._find_attrs(grp, filterby):
+            return self._find_attrs(grp, filterby)
 
         elif what.lower() in ['groups', 'grps']:
-            return self._find_grps(grp, filterby):
+            return self._find_grps(grp, filterby)
+
+        elif what.lower() in ['dimensions', 'dims']:
+            return self._find_dims(grp, filterby)
 
         else:
             raise NotImplementedError
 
 
-
-
-
-    def get(self, *args, **kwargs):
-        """ Returns values of arguments requested
-
-        def _get(self, item, grp=None, fmt=None, squeeze=True):
+    def _get(self, item, grp=None, fmt=None, squeeze=True):
+        """
         Returns item/s from file/group, may be attribute/s or variable/s.
 
         .. warning::
@@ -471,12 +570,6 @@ class NetCDFDataModel(DataModel):
         self.df = self._get_ds(grp).to_dataframe()
 
 
-    def _get_dims(self,grp=None):
-        """Find names of dimensions in dataset group
-
-        """
-
-
 
     def _get_time(self,grp=None):
         """Sets self.time property based on time coordinate of dataset group
@@ -545,25 +638,6 @@ class NetCDFDataModel(DataModel):
         self.groups = list(_groups)
 
 
-    def _get_attr(self, attr, grp=None):
-        """Returns requested attribute/s from file/group or None if nonexistant.
-
-        """
-
-        try:
-            ds = xr.open_dataset(self.path, group=grp) # self.file?
-        except OSError as err:
-            # Generally because grp is not a valid file group
-            print(err.errno)
-            return None
-
-        with ds:
-            # discard any attributes that are not in ds
-            ds_attr = {k:ds.attrs[k] for k in attr if k in ds.attrs}
-            if len(ds_attr) == 0:
-                return None
-
-        return ds_attr
 
 
     def _get_var(self, var, grp=None):
@@ -589,6 +663,14 @@ class NetCDFDataModel(DataModel):
 
 
     def __getitem__(self, item):
+
+
+        """
+        This uses _find_x() to filter and obtain full paths then passes this to
+        _get_x() to return results
+
+        """
+
 
         return 'fred'
 
