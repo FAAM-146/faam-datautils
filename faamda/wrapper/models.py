@@ -258,11 +258,16 @@ class NetCDFDataModel(DataModel):
                         print(err)
                         continue
 
-            attr_d.update({a:_ds.getncattr(os.path.basename(a)) for a
-                           in attrs_l if a in _ds.ncattrs()})
+                if set(['*','all','ALL']).isdisjoint(attrs_l):
+                    attr_d.update({a:_ds.getncattr(os.path.basename(a)) for a
+                                   in attrs_l if a in _ds.ncattrs()})
+                else:
+                    # Return all attributes in group
+                    attr_d.update({a:_ds.getncattr(os.path.basename(a)) for a
+                                   in _ds.ncattrs()})
 
         if squeeze and len(attr_d) == 1:
-            return attr_d.value:
+            return attr_d.value
         else:
             return attr_d
 
@@ -333,6 +338,58 @@ class NetCDFDataModel(DataModel):
                 return [g for g in _ds.groups.keys() if filterby.lower() in g.lower()]
             else:
                 return list(_ds.groups.keys())
+
+
+    def _get_grps(self, grps, fmt='xr', squeeze=True):
+        """Returns dictionary of datasets associated with each group in grps.
+
+        Args:
+            grps (:obj:`str` or :obj:`list`): Single group name or list of
+                groups to interogate. Root is indicated by either '' or '/'.
+            fmt (:boj:`str`): Format of nc file output returned. Should be
+                one of 'pd' for a pandas dataframe or 'xr' [default] for an
+                xarray dataset.
+            squeeze (:obj:`boolean`): If True [default] reduces dimensionality
+                when possible.
+
+        Returns:
+                If squeeze is True then returns single dataset with variable/s
+                or None if no groups or group variables found. If False
+                then returns dictionary, empty or len==1 in these cases. If more
+                than one group is found then list of datasets is always
+                returned. Dictionary keys are the groups in grp.
+
+        """
+
+        ### Not written yet
+
+        if type(attrs) in [str]:
+            _grps = [grps]
+        else:
+            _grps = grps
+
+        # Obtain path information from attribute strings
+        grps, attr_idx = _uniq_grps(_attrs)
+
+        with Dataset(self.path, 'r') as ds:
+            attr_d = {}
+            for attr_l, grp in zip(_attrs[attr_idx], grps):
+                if grp in [None,'','/']:
+                    _ds = ds
+                else:
+                    try:
+                        _ds = ds[grp]
+                    except IndexError as err:
+                        print(err)
+                        continue
+
+            attr_d.update({a:_ds.getncattr(os.path.basename(a)) for a
+                           in attrs_l if a in _ds.ncattrs()})
+
+        if squeeze and len(attr_d) == 1:
+            return attr_d.value
+        else:
+            return attr_d
 
 
     def _find_vars(self, grp=None, filterby=None):
