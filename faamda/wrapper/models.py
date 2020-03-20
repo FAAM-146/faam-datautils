@@ -166,6 +166,131 @@ class NetCDFDataModel(DataModel):
         return grps_uniq, grps_idx
 
 
+    def _find_vars(self, grp=None, filterby=None):
+        """Find variable names in group grp and filter by filterby
+
+        Args:
+            grp (:obj:`str`): Path to single group, default is None or the
+                file root.
+            filterby (:obj:`str`): Substring to filter the returned keys by.
+                For attributes and groups this shall be a simple regex on the
+                name of the attributes/groups. For variables it shall also
+                include a `filter_by_attrs()` call to search the `long_name` and
+                `standard_name` attributes.
+
+        Returns:
+            List of variables, with full path, or [] if nothing found.
+
+        """
+
+        with Dataset(self.path, 'r') as ds:
+            # Should opening file be in calling method?
+            if grp in [None,'','/']:
+                _ds = ds
+            else:
+                try:
+                    _ds = ds[grp]
+                except IndexError as err:
+                    print(err)
+                    return []
+
+            # Search for variables and filter by long_name, standard_name, and variable name
+            attr_filter = lambda v: v != None and filterby.lower() in v.lower()
+
+            vars_ln = [v.name for v in _ds.get_variables_by_attributes(long_name = attr_filter)]
+            try:
+                vars_ln = [os.path.join(v.group().name, v) for v in vars_ln[::]]
+            except KeyError as err:
+                # group is 'empty' as is the root so no name attribute
+                # is there a better catch for this?
+                pass
+
+            vars_sn = [v.name for v in _ds.get_variables_by_attributes(standard_name = attr_filter)]
+            try:
+                vars_sn = [os.path.join(v.group().name, v) for v in vars_sn[::]]
+            except KeyError as err:
+                pass
+
+            vars_vn = [v.name for v in _ds.variables if filterby.lower() in v.name.lower()]
+            try:
+                vars_vn = [os.path.join(v.group().name, v) for v in vars_vn[::]]
+            except KeyError as err:
+                pass
+
+            return list(set([v for v in vars_ln]).union([v for v in vars_sn],
+                                                        [v for v in vars_vn]))
+
+
+    def _find_attrs(self, grp=None, filterby=None):
+        """Find attribute names in group grp and filter by filterby
+
+        Args:
+            grp (:obj:`str`): Path to single group, default is None or the
+                file root.
+            filterby (:obj:`str`): Substring to filter the returned keys by.
+                For attributes and groups this shall be a simple regex on the
+                name of the attributes/groups. For variables it shall also
+                include a `filter_by_attrs()` call to search the `long_name` and
+                `standard_name` attributes.
+
+        Returns:
+            List of attribute names, with full path, or [] if nothing found.
+
+        """
+
+        with Dataset(self.path, 'r') as ds:
+            # Should opening file be in calling method?
+            if grp in [None,'','/']:
+                _ds = ds
+            else:
+                try:
+                    _ds = ds[grp]
+                except IndexError as err:
+                    print(err)
+                    return []
+
+            if filterby:
+                return [a for a in _ds.ncattrs() if filterby.lower() in a.lower()]
+            else:
+                return _ds.ncattrs()
+
+
+    def _find_grps(self, grp=None, filterby=None):
+        """Find group names in group grp and filter by filterby
+
+        Args:
+            grp (:obj:`str`): Path to single group, default is None or the
+                file root.
+            filterby (:obj:`str`): Substring to filter the returned keys by.
+                For attributes and groups this shall be a simple regex on the
+                name of the attributes/groups. For variables it shall also
+                include a `filter_by_attrs()` call to search the `long_name` and
+                `standard_name` attributes.
+
+        Returns:
+            List of group names, with full path, or [] if nothing found.
+
+        """
+
+        with Dataset(self.path, 'r') as ds:
+            # Should opening file be in calling method?
+            if grp in [None,'','/']:
+                _ds = ds
+            else:
+                try:
+                    _ds = ds[grp]
+                except IndexError as err:
+                    print(err)
+                    return []
+
+            if filterby:
+                return [g for g in _ds.groups().keys() if filterby.lower() in g.lower()]
+            else:
+                return list(_ds.groups().keys())
+
+
+
+
     def find(self, what, filterby=None):
         """Finds requested features in file and returns those found
 
@@ -200,60 +325,122 @@ class NetCDFDataModel(DataModel):
         # Obtain any path information from `what` arg
         grp, _ = _uniq_grps(what)
 
-        with Dataset(file, 'r') as ds:
+        if what.lower() in ['variables', 'vars']:
+            return self._find_vars(grp, filterby):
 
-            if grp in [None,'','/']:
-                _ds = ds
-            else:
-                try:
-                    _ds = ds[grp]
-                except IndexError as err:
-                    print(err)
-                    return []
+        elif what.lower() in ['attributes', 'attrs']:
+            return self._find_attrs(grp, filterby):
 
-            if what.lower() in ['variables', 'vars']:
-                # Search for variables and filter by long_name, standard_name, and variable name
-                attr_filter = lambda v: v != None and filterby.lower() in v.lower()
+        elif what.lower() in ['groups', 'grps']:
+            return self._find_grps(grp, filterby):
 
-                vars_ln = [v.name for v in _ds.get_variables_by_attributes(long_name = attr_filter)]
-                try:
-                    vars_ln = [os.path.join(v.group().name, v) for v in vars_ln[::]]
-                except KeyError as err:
-                    # group is 'empty' as is the root so no name attribute
-                    # is there a better catch for this?
-                    pass
-
-                vars_sn = [v.name for v in _ds.get_variables_by_attributes(standard_name = attr_filter)]
-                try:
-                    vars_sn = [os.path.join(v.group().name, v) for v in vars_sn[::]]
-                except KeyError as err:
-                    pass
-
-                vars_vn = [v.name for v in _ds.variables if filterby.lower() in v.name.lower()]
-                try:
-                    vars_vn = [os.path.join(v.group().name, v) for v in vars_vn[::]]
-                except KeyError as err:
-                    pass
-
-                return list(set([v for v in vars_ln]).union([v for v in vars_sn],
-                                                            [v for v in vars_vn]))
+        else:
+            raise NotImplementedError
 
 
-            if what.lower() in ['attributes', 'attrs']:
 
-                if filterby:
-                    return [a for a in _ds.ncattrs() is filterby.lower() in a.lower()]
 
-                else:
-                    return _ds.ncattrs()
 
-            if what.lower() in ['groups', 'grps']:
+    def get(self, *args, **kwargs):
+        """ Returns values of arguments requested
 
-                if filterby:
-                    return [g for g in _ds.groups().keys() is filterby.lower() in g.lower()]
+        def _get(self, item, grp=None, fmt=None, squeeze=True):
+        Returns item/s from file/group, may be attribute/s or variable/s.
 
-                else:
-                    return list(_ds.groups().keys())
+        .. warning::
+            Note that requesting both a variable(s) and an attribute(s) does not
+            make any sense. If requesting a variable, a dataset is returned. If
+            requesting an attribute, the value of that attribute is returned. So
+            these two are incompatible. If both variables and attributes are
+            included in item then the attribute request is discarded.
+
+        .. note::
+            Variable attributes are returned automatically with the variables.
+            Attributes given in `item` are group (including root) attributes.
+
+        Args:
+            item (:obj:`str` or :obj:`list`): Single variable or list of
+                variable strings to read. The variable string/s may include
+                the full path if groups are involved.
+            grp (:obj:`str`): Path to single group, default is None or the
+                file root. The same path is prepended to all items if there
+                are more than one in addition to any path information in the
+                item string/s.
+            fmt (:boj:`str`): Format of nc file output returned. None [default]
+                enables automatic attempt to guess best format.
+
+
+
+            Need to work squeeze
+
+            squeeze (:obj:`boolean`): If True [default] then returns single
+                dataset with variable/s or None if no variables found. If False
+                then returns list, empty or len==1 in these cases. If more than
+                one dataset is found then list of datasets is always returned.
+
+        Returns:
+            If `squeeze` is False then list of datasets or dictionary of attribute
+                key:value pairs. If `squeeze` is True then, if only single
+                variable or attribute then returns single dataset or attribute
+                value.
+        """
+
+        guess_fmt = {'str': {'in': [lambda i: type(i) in [str]],
+                             'out': lambda o: str(o)},
+                     'df':  {'in': [lambda i: type(i) in []],
+                             'out': lambda o: o}
+                    }
+
+        if grp in [None,'','/']:
+            grp = ''
+
+        if type(item) in [str]:
+            items = [os.path.join(grp, item)]
+        else:
+            items = [os.path.join(grp, i) for i in item]
+        del grp
+
+        # Get list of unique groups. Unfortunately open_dataset must be called
+        # for each different group.
+        _grps, _items = zip(*sorted([os.path.split(i_) for i_ in items],
+                                    key=lambda g: g[0]))
+
+        _grps = [g.replace('/','') for g in _grps[::]]
+        _grps_uniq = set(_grps)
+        _grps_idx = [[i for i,x in enumerate(_grps)  if x==y] for y in _grps_uniq]
+
+
+        iteml = []
+        for idx, grp in zip(_grps_idx, _grps_uniq):
+            # Loop through each group and pass all of the items from that group
+            iteml.append(self._get_var([_items[i] for i in idx],
+                                       grp))
+
+        if len(iteml) == 0:
+            # No variables found. Check for attributes
+
+            ### TODO:: This is not a very good way of doing this...
+
+            for idx, grp in zip(_grps_idx, _grps_uniq):
+                # Loop through each group and pass all of the items from that group
+                iteml.append(self._get_attr([_items[i] for i in idx],
+                                            grp))
+
+            if squeeze and len(iteml) == 0:
+                return None
+            if squeeze and len(iteml) == 1:
+                # Return only value of single attribute found
+                # squeeze should not be used if multiple unknown attribute keys
+                # are passed in as a single returned value could belong to any...
+                return iteml[iteml.keys()[0]]
+
+        else:
+            # Returning variable/s
+            if squeeze and len(iteml) == 1:
+                # If only single dataset then extract from list and return
+                return iteml[0]
+
+        return iteml
 
 
     def _get_ds(self,grp=None):
@@ -414,103 +601,6 @@ class NetCDFDataModel(DataModel):
 
     """
 
-    def _get(self, item, grp=None, fmt=None, squeeze=True):
-        """Returns item/s from file/group, may be attribute/s or variable/s.
-
-        .. warning::
-            Note that requesting both a variable(s) and an attribute(s) does not
-            make any sense. If requesting a variable, a dataset is returned. If
-            requesting an attribute, the value of that attribute is returned. So
-            these two are incompatible. If both variables and attributes are
-            included in item then the attribute request is discarded.
-
-        .. note::
-            Variable attributes are returned automatically with the variables.
-            Attributes given in `item` are group (including root) attributes.
-
-        Args:
-            item (:obj:`str` or :obj:`list`): Single variable or list of
-                variable strings to read. The variable string/s may include
-                the full path if groups are involved.
-            grp (:obj:`str`): Path to single group, default is None or the
-                file root. The same path is prepended to all items if there
-                are more than one in addition to any path information in the
-                item string/s.
-            fmt (:boj:`str`): Format of nc file output returned. None [default]
-                enables automatic attempt to guess best format.
-
-
-
-            Need to work squeeze
-
-            squeeze (:obj:`boolean`): If True [default] then returns single
-                dataset with variable/s or None if no variables found. If False
-                then returns list, empty or len==1 in these cases. If more than
-                one dataset is found then list of datasets is always returned.
-
-        Returns:
-            If `squeeze` is False then list of datasets or dictionary of attribute
-                key:value pairs. If `squeeze` is True then, if only single
-                variable or attribute then returns single dataset or attribute
-                value.
-        """
-
-        guess_fmt = {'str': {'in': [lambda i: type(i) in [str]],
-                             'out': lambda o: str(o)},
-                     'df':  {'in': [lambda i: type(i) in []],
-                             'out': lambda o: o}
-                    }
-
-        if grp in [None,'','/']:
-            grp = ''
-
-        if type(item) in [str]:
-            items = [os.path.join(grp, item)]
-        else:
-            items = [os.path.join(grp, i) for i in item]
-        del grp
-
-        # Get list of unique groups. Unfortunately open_dataset must be called
-        # for each different group.
-        _grps, _items = zip(*sorted([os.path.split(i_) for i_ in items],
-                                    key=lambda g: g[0]))
-
-        _grps = [g.replace('/','') for g in _grps[::]]
-        _grps_uniq = set(_grps)
-        _grps_idx = [[i for i,x in enumerate(_grps)  if x==y] for y in _grps_uniq]
-
-
-        iteml = []
-        for idx, grp in zip(_grps_idx, _grps_uniq):
-            # Loop through each group and pass all of the items from that group
-            iteml.append(self._get_var([_items[i] for i in idx],
-                                       grp))
-
-        if len(iteml) == 0:
-            # No variables found. Check for attributes
-
-            ### TODO:: This is not a very good way of doing this...
-
-            for idx, grp in zip(_grps_idx, _grps_uniq):
-                # Loop through each group and pass all of the items from that group
-                iteml.append(self._get_attr([_items[i] for i in idx],
-                                            grp))
-
-            if squeeze and len(iteml) == 0:
-                return None
-            if squeeze and len(iteml) == 1:
-                # Return only value of single attribute found
-                # squeeze should not be used if multiple unknown attribute keys
-                # are passed in as a single returned value could belong to any...
-                return iteml[iteml.keys()[0]]
-
-        else:
-            # Returning variable/s
-            if squeeze and len(iteml) == 1:
-                # If only single dataset then extract from list and return
-                return iteml[0]
-
-        return iteml
 
 ### No workie!! Properties cannot accept args
 
