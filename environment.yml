@@ -10,7 +10,7 @@ dependencies:
   - ipython
   - markupsafe
   - matplotlib>=2.2
-  - netcdf4>=1.4
+  - netcdf4>=1.5
   - numpy>=1.15
   - numpy-base>=1.15
   - pandas>=0.23
