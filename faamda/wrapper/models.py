@@ -725,6 +725,8 @@ class NetCDFDataModel(DataModel):
 
         return ds_var
 
+    def get(self, *args, **kwargs):
+        raise NotImplementedError
 
     def __getitem__(self, item):
 
