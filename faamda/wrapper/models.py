@@ -1,5 +1,6 @@
 import abc
 import datetime
+import os.path
 
 from netCDF4 import Dataset, num2date
 
@@ -144,6 +145,7 @@ class NetCDFDataModel(DataModel):
         self.handle.close()
         self.handle = None
 
+    @staticmethod
     def _uniq_grps(strs):
         """ Returns list of unique groups/paths from list of strs
 
@@ -170,7 +172,7 @@ class NetCDFDataModel(DataModel):
         grps_uniq = set(_grps)
         grps_idx = [[i for i,x in enumerate(_grps)  if x==y] for y in grps_uniq]
 
-        return grps_uniq, grps_idx
+        return list(grps_uniq), grps_idx
 
 
     def _find_attrs(self, grp=None, filterby=None):
@@ -189,7 +191,6 @@ class NetCDFDataModel(DataModel):
             List of attribute names, with full path, or [] if nothing found.
 
         """
-
         with Dataset(self.path, 'r') as ds:
             # Should opening file be in calling method?
             if grp in [None,'','/']:
@@ -251,7 +252,7 @@ class NetCDFDataModel(DataModel):
             _attrs = attrs
 
         # Obtain path information from attribute strings
-        grps, attr_idx = _uniq_grps(_attrs)
+        grps, attr_idx = self._uniq_grps(_attrs)
 
         with Dataset(self.path, 'r') as ds:
             attr_d = {}
@@ -376,7 +377,7 @@ class NetCDFDataModel(DataModel):
             _grps = grps
 
         # Obtain path information from attribute strings
-        grps, attr_idx = _uniq_grps(_attrs)
+        grps, attr_idx = self._uniq_grps(_attrs)
 
         with Dataset(self.path, 'r') as ds:
             attr_d = {}
@@ -415,6 +416,10 @@ class NetCDFDataModel(DataModel):
             List of variables, with full path, or [] if nothing found.
 
         """
+        pdb.set_trace()
+
+        # Concat groups and variable name
+        grpvar_func = lambda vlist: [os.path.join(_ds[v].group().name, v) for v in vlist]
 
         with Dataset(self.path, 'r') as ds:
             # Should opening file be in calling method?
@@ -427,12 +432,15 @@ class NetCDFDataModel(DataModel):
                     print(err)
                     return []
 
+            if filterby == None:
+                return grpvar_func(_ds.variables)
+
             # Search for variables and filter by long_name, standard_name, and variable name
             attr_filter = lambda v: v != None and filterby.lower() in v.lower()
 
             vars_ln = [v.name for v in _ds.get_variables_by_attributes(long_name = attr_filter)]
             try:
-                vars_ln = [os.path.join(v.group().name, v) for v in vars_ln[::]]
+                vars_ln = grpvar_func(vars_ln[::])
             except KeyError as err:
                 # group is 'empty' as is the root so no name attribute
                 # is there a better catch for this?
@@ -440,18 +448,17 @@ class NetCDFDataModel(DataModel):
 
             vars_sn = [v.name for v in _ds.get_variables_by_attributes(standard_name = attr_filter)]
             try:
-                vars_sn = [os.path.join(v.group().name, v) for v in vars_sn[::]]
+                vars_sn = grpvar_func(vars_sn[::])
             except KeyError as err:
                 pass
 
-            vars_vn = [v.name for v in _ds.variables if filterby.lower() in v.name.lower()]
+            vars_vn = [v for v in _ds.variables if filterby.lower() in v.lower()]
             try:
-                vars_vn = [os.path.join(v.group().name, v) for v in vars_vn[::]]
+                vars_vn = grpvar_func(vars_vn[::])
             except KeyError as err:
                 pass
 
-            return list(set([v for v in vars_ln]).union([v for v in vars_sn],
-                                                        [v for v in vars_vn]))
+            return list(set(vars_ln).union(vars_sn, vars_vn))
 
 
 
@@ -486,21 +493,20 @@ class NetCDFDataModel(DataModel):
             List of variable, attribute, or group names or [] if nothing found.
 
         """
-
         # Obtain any path information from `what` arg
-        grp, _ = _uniq_grps(what)
+        grp, _ = self._uniq_grps(what)
 
-        if what.lower() in ['variables', 'vars']:
-            return self._find_vars(grp, filterby)
+        if os.path.basename(what).lower() in ['variables', 'vars']:
+            return self._find_vars(grp[0], filterby)
 
-        elif what.lower() in ['attributes', 'attrs']:
-            return self._find_attrs(grp, filterby)
+        elif os.path.basename(what).lower() in ['attributes', 'attrs']:
+            return self._find_attrs(grp[0], filterby)
 
-        elif what.lower() in ['groups', 'grps']:
-            return self._find_grps(grp, filterby)
+        elif os.path.basename(what).lower() in ['groups', 'grps']:
+            return self._find_grps(grp[0], filterby)
 
-        elif what.lower() in ['dimensions', 'dims']:
-            return self._find_dims(grp, filterby)
+        elif os.path.basename(what).lower() in ['dimensions', 'dims']:
+            return self._find_dims(grp[0], filterby)
 
         else:
             raise NotImplementedError
