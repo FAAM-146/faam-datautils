@@ -14,7 +14,13 @@ import matplotlib.pyplot as plt
 import glob
 import pdb
 
+from netCDF4 import Dataset
+
+
 _user_ = 'graeme'
+_location_ = 'home'
+
+
 repo_path = {'graeme': os.path.join(os.path.expanduser('~'), 'git'),
              'dave': ''}
 
@@ -35,35 +41,35 @@ data_path = {'graeme': {'home': ['/home/graeme/Documents/work/ARNA-2/data'],
                         'work': ['/home/daspr/drive/core_processing/2020']}}
 
 
-def getvars(file, item, grp=None):
-
-    pdb.set_trace()
-    if type(item) in [str]:
-        items = [os.path.join(grp, item)]
-    else:
-        items = [os.path.join(grp, i) for i in item]
-
-    # Get list of unique groups. Unfortunately open_dataset must be called
-    # for each different group.
-    _grps, _vars = zip(*sorted([os.path.split(i_) for i_ in items],
-                               key=lambda g: g[0]))
-
-    _grps = [g.replace('/','') for g in _grps[::]]
-    _grps_uniq = set(_grps)
-    _grps_idx = [[i for i,x in enumerate(_grps)  if x==y] for y in _grps_uniq]
-
-    with Dataset(self.path, 'r') as f:
-        pass
-
-
-
-faam = FAAM(data_path[_user_]['work'])
+#fred = getvars('testing.nc',['time','bob','bin_cal/bin'])
+faam = FAAM(data_path[_user_][_location_])
 
 flight = 'c224'
-grp = ''
-items = ['fred/SW_UP_C','/PSAP_FLO','fred/TDEW_CR2']
+grps = []
+core_items = ['fred/SW_UP_C','TDEW_CR2','TDEW_CR2']    # Core nc3
+ccp_items = ['CDP_CONC','CDP_FLAG']     # Core Cloud nc3
+
+pdb.set_trace()
+
+fred = faam[flight].core
+bob = faam[flight].ccp
+alice = faam[flight].ccpCIP15
+
+with faam[flight].core.raw as nc:
+  # treat nc as if you'd done Dataset(corefile, 'r') as nc:
+  time = nc['Time'][:]
 
 
-fred = getvars(faam[flight].core.file,items,grp)
+pdb.set_trace()
+
+tc = faam[flight].core._get_time()
+tccp = faam[flight].ccp.time()
+tccpCIP15 = faam[flight].ccpCIP15.time('pads_raw')
+
+
+CIP15groups = faam[flight].ccpCIP15._get_groups()
+
+
+fred = faam[flight].core[core_items]
 
 pdb.set_trace()
