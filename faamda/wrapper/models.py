@@ -136,6 +136,13 @@ class NetCDFDataModel(DataModel):
     #     self.time = None
     #     self.groups = []    # should this be ['/']?
 
+    def __enter__(self):
+        self.handle = Dataset(self.path, 'r')
+        return self.handle
+
+    def __exit__(self, *args):
+        self.handle.close()
+        self.handle = None
 
     def _uniq_grps(strs):
         """ Returns list of unique groups/paths from list of strs
