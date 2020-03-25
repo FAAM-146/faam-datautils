@@ -479,7 +479,7 @@ class NetCDFDataModel(DataModel):
 
 
     def find(self, what, filterby=None):
-        """Finds requested features in file and returns those found
+        """Finds requested features in file and returns names of those found
 
         Args:
             what (:obj:`str`): Type of feature to find in self. Must be in
@@ -532,9 +532,9 @@ class NetCDFDataModel(DataModel):
             raise NotImplementedError
 
 
-    def _get(self, item, grp=None, fmt=None, squeeze=True):
-        """
-        Returns item/s from file/group, may be attribute/s or variable/s.
+
+    def get(self, item, grp=None, fmt=None, squeeze=True):
+        """Returns item/s from file/group, may be attribute/s or variable/s.
 
         .. warning::
             Note that requesting both a variable(s) and an attribute(s) does not
@@ -557,11 +557,6 @@ class NetCDFDataModel(DataModel):
                 item string/s.
             fmt (:boj:`str`): Format of nc file output returned. None [default]
                 enables automatic attempt to guess best format.
-
-
-
-            Need to work squeeze
-
             squeeze (:obj:`boolean`): If True [default] then returns single
                 dataset with variable/s or None if no variables found. If False
                 then returns list, empty or len==1 in these cases. If more than
@@ -573,6 +568,11 @@ class NetCDFDataModel(DataModel):
                 variable or attribute then returns single dataset or attribute
                 value.
         """
+
+
+        # Obtain any path information from `what` arg
+        grp, _ = self._uniq_grps(what)
+
 
         guess_fmt = {'str': {'in': [lambda i: type(i) in [str]],
                              'out': lambda o: str(o)},
@@ -750,9 +750,6 @@ class NetCDFDataModel(DataModel):
                 return None
 
         return ds_var
-
-    def get(self, *args, **kwargs):
-        raise NotImplementedError
 
     def __getitem__(self, item):
 
