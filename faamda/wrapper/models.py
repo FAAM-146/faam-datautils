@@ -14,6 +14,9 @@ __all__ = ['CoreNetCDFDataModel',
            'NetCDFDataModel',
            'FltSumDataModel']
 
+IS_ATTRIBUTE = 101
+IS_VARIABLE = 102
+
 
 class DataModel(abc.ABC):
     def __init__(self, path):
@@ -58,6 +61,7 @@ class CoreNetCDFDataModel(DataModel):
     Core netCDF specific model to deal with multi-frequency variables
 
     """
+
     def __getitem__(self, item):
 
         if type(item) is str:
@@ -65,6 +69,9 @@ class CoreNetCDFDataModel(DataModel):
         else:
             items = item
 
+        return self._get_if_consistent(items)
+
+    def _get_vars(self, items):
         with Dataset(self.path, 'r') as nc:
             max_freq = max([self._get_freq(nc[i]) for i in items])
             df = pd.DataFrame(index=self._time_at(max_freq))
@@ -76,6 +83,38 @@ class CoreNetCDFDataModel(DataModel):
                 df.loc[_time, item] = _data
 
         return df
+
+    def _get_attrs(self, items):
+        _attrs = {}
+        with Dataset(self.path, 'r') as nc:
+            for item in items:
+                _attrs[item] = getattr(nc, item)
+
+        return _attrs
+
+    def _get_if_consistent(self, items):
+
+        def _get_type(nc, item):
+
+            if item in nc.variables:
+                return IS_VARIABLE
+            if item in nc.ncattrs():
+                return IS_ATTRIBUTE
+
+            raise KeyError('{} not found'.format(item))
+
+        _map = {
+            IS_VARIABLE: self._get_vars,
+            IS_ATTRIBUTE: self._get_attrs
+        }
+
+        with Dataset(self.path, 'r') as nc:
+            types = [_get_type(nc, item) for item in items]
+
+        if types.count(types[0]) != len(types):
+            raise ValueError('Cannot mix variables and attributes')
+
+        return _map[types[0]](items)
 
     def _get_freq(self, var):
             try:
