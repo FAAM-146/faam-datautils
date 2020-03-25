@@ -303,6 +303,9 @@ class NetCDFDataModel(DataModel):
             List of dimension names, with full path, or [] if nothing found.
 
         """
+        # Will this work if v is a dimension but not a coordinate?
+        grpvar_func = lambda vlist: \
+            [os.path.join(_ds[v].group().name, v) if _ds!=ds else v for v in vlist]
 
         with Dataset(self.path, 'r') as ds:
             # Should opening file be in calling method?
@@ -316,9 +319,11 @@ class NetCDFDataModel(DataModel):
                     return []
 
             if filterby:
-                return [d for d in _ds.dimensions.keys() if filterby.lower() in d.lower()]
+                dims_l = [d for d in _ds.dimensions.keys() if filterby.lower() in d.lower()]
             else:
-                return list(_ds.dimensions.keys())
+                dims_l = list(_ds.dimensions.keys())
+
+            return grpvar_func(dims_l)
 
 
     def _find_grps(self, grp=None, filterby=None):
@@ -337,6 +342,9 @@ class NetCDFDataModel(DataModel):
             List of group names, with full path, or [] if nothing found.
 
         """
+        grpvar_func = lambda vlist: \
+            [os.path.join(_ds[v].path, v) if _ds!=ds else v for v in vlist]
+
         with Dataset(self.path, 'r') as ds:
             # Should opening file be in calling method?
             if grp in [None,'','/']:
@@ -349,9 +357,11 @@ class NetCDFDataModel(DataModel):
                     return []
 
             if filterby:
-                return [g for g in _ds.groups.keys() if filterby.lower() in g.lower()]
+                grp_l = [g for g in _ds.groups.keys() if filterby.lower() in g.lower()]
             else:
-                return list(_ds.groups.keys())
+                grp_l = list(_ds.groups.keys())
+
+        return grpvar_func(grp_l)
 
 
     def _get_grps(self, grps, fmt='xr', squeeze=True):
@@ -502,16 +512,20 @@ class NetCDFDataModel(DataModel):
         # Obtain any path information from `what` arg
         grp, _ = self._uniq_grps(what)
 
-        if os.path.basename(what).lower() in ['variables', 'vars']:
+        if os.path.basename(what).lower() in ['variable', 'var',
+                                              'variables', 'vars']:
             return self._find_vars(grp[0], filterby)
 
-        elif os.path.basename(what).lower() in ['attributes', 'attrs']:
+        elif os.path.basename(what).lower() in ['attribute', 'attr',
+                                                'attributes', 'attrs']:
             return self._find_attrs(grp[0], filterby)
 
-        elif os.path.basename(what).lower() in ['groups', 'grps']:
+        elif os.path.basename(what).lower() in ['group', 'grp',
+                                                'groups', 'grps']:
             return self._find_grps(grp[0], filterby)
 
-        elif os.path.basename(what).lower() in ['dimensions', 'dims']:
+        elif os.path.basename(what).lower() in ['dimension', 'dim',
+                                                'dimensions', 'dims']:
             return self._find_dims(grp[0], filterby)
 
         else:
