@@ -74,6 +74,56 @@ class CoreAccessor(DataAccessor):
         # Return a list of indicies, at required freq
         return [i.asfreq('{0:0.0f}N'.format(1e9/freq)).index for i in slrs]
 
+    def profiles(self, min_length=60):
+        rolling = 60
+        thresh = 0.15
+
+        _df = self[['PS_RVSM', 'WOW_IND']].asfreq('1S')
+        _df = _df[_df.WOW_IND == 0]
+        _df['profile_down'] = 0
+        _df['profile_down'].loc[
+            _df.PS_RVSM.rolling(rolling, center=True).mean().diff() < thresh
+        ] = 1
+        _df['_profile_down'] = (
+            _df.profile_down.diff() != 0
+        ).astype(int).cumsum()
+
+        grp_down = _df.groupby(_df._profile_down)
+
+        profile_down = []
+        for group in grp_down:
+            _d = group[1]
+            if _d.profile_down.mean() != 0:
+                continue
+            if len(_d) < min_length:
+                continue
+            profile_down.append(group[1].index)
+
+        _df['profile_up'] = 0
+        _df['profile_up'].loc[
+            _df.PS_RVSM.rolling(rolling, center=True).mean().diff() > -thresh
+        ] = 1
+        _df['_profile_up'] = (
+            _df.profile_up.diff() != 0
+        ).astype(int).cumsum()
+
+        grp_up = _df.groupby(_df._profile_up)
+
+        profile_up = []
+        for group in grp_up:
+            _d = group[1]
+            if _d.profile_up.mean() != 0:
+                continue
+            if len(_d) < min_length:
+                continue
+            profile_up.append(group[1].index)
+
+        return {
+            'ascending': profile_up,
+            'descending': profile_down
+        }
+
+
 
 @register_accessor
 class CoreFltSumAccessor(DataAccessor):
