@@ -66,15 +66,21 @@ class CoreNetCDFDataModel(DataModel):
             items = item
 
         with Dataset(self.path, 'r') as nc:
-            max_freq = max([nc[i].frequency for i in items])
+            max_freq = max([self._get_freq(nc[i]) for i in items])
             df = pd.DataFrame(index=self._time_at(max_freq))
 
             for item in items:
                 _data = nc[item][:].ravel()
-                _time = self._time_at(nc[item].frequency)
+                _time = self._time_at(self._get_freq(nc[item]))
                 df.loc[_time, item] = _data
 
         return df
+
+    def _get_freq(self, var):
+            try:
+                return var.shape[1]
+            except IndexError:
+                return 1
 
     def _time_at(self, freq):
         if self.time is None:
