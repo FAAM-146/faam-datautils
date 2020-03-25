@@ -17,6 +17,11 @@ __all__ = ['CoreNetCDFDataModel',
 IS_ATTRIBUTE = 101
 IS_VARIABLE = 102
 
+VARIABLE_STRINGS = ['variable', 'var', 'variables', 'vars']
+ATTRIBUTE_STRINGS = ['attribute', 'attr', 'attributes', 'attrs']
+GROUP_STRINGS = ['group', 'grp', 'groups', 'grps']
+DIMENSION_STRINGS = ['dimension', 'dim', 'dimensions', 'dims']
+
 
 class DataModel(abc.ABC):
     def __init__(self, path):
@@ -561,20 +566,16 @@ class NetCDFDataModel(DataModel):
         # Obtain any path information from `what` arg
         grp, _ = self._uniq_grps(what)
 
-        if os.path.basename(what).lower() in ['variable', 'var',
-                                              'variables', 'vars']:
+        if os.path.basename(what).lower() in VARIABLE_STRINGS:
             return self._find_vars(grp[0], filterby)
 
-        elif os.path.basename(what).lower() in ['attribute', 'attr',
-                                                'attributes', 'attrs']:
+        elif os.path.basename(what).lower() in ATTRIBUTE_STRINGS:
             return self._find_attrs(grp[0], filterby)
 
-        elif os.path.basename(what).lower() in ['group', 'grp',
-                                                'groups', 'grps']:
+        elif os.path.basename(what).lower() in GROUP_STRINGS:
             return self._find_grps(grp[0], filterby)
 
-        elif os.path.basename(what).lower() in ['dimension', 'dim',
-                                                'dimensions', 'dims']:
+        elif os.path.basename(what).lower() in DIMENSION_STRINGS:
             return self._find_dims(grp[0], filterby)
 
         else:
