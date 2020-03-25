@@ -71,6 +71,7 @@ class CoreNetCDFDataModel(DataModel):
 
             for item in items:
                 _data = nc[item][:].ravel()
+                _data[_data.mask] = np.nan
                 _time = self._time_at(self._get_freq(nc[item]))
                 df.loc[_time, item] = _data
 
