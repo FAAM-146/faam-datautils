@@ -337,7 +337,6 @@ class NetCDFDataModel(DataModel):
             List of group names, with full path, or [] if nothing found.
 
         """
-
         with Dataset(self.path, 'r') as ds:
             # Should opening file be in calling method?
             if grp in [None,'','/']:
@@ -423,10 +422,11 @@ class NetCDFDataModel(DataModel):
             List of variables, with full path, or [] if nothing found.
 
         """
-        pdb.set_trace()
 
-        # Concat groups and variable name
-        grpvar_func = lambda vlist: [os.path.join(_ds[v].group().name, v) for v in vlist]
+        # Func for producing list of var inc path.
+        # Yet again root is handled differently, thus the conditional.
+        grpvar_func = lambda vlist: \
+            [os.path.join(_ds[v].group().name, v) if _ds!=ds else v for v in vlist]
 
         with Dataset(self.path, 'r') as ds:
             # Should opening file be in calling method?
@@ -466,7 +466,6 @@ class NetCDFDataModel(DataModel):
                 pass
 
             return list(set(vars_ln).union(vars_sn, vars_vn))
-
 
 
     def find(self, what, filterby=None):
