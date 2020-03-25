@@ -129,8 +129,18 @@ class CoreNetCDFDataModel(DataModel):
         time_start = num2date(self.time[0], units=self.time_units)
         time_end = num2date(
             self.time[-1] + 1,
-            units=self.time_units
+            units=self.time_units,
+            calendar=self.time_calendar
         )
+
+        try:
+            # Newer (?) versions of netCDF4 give datetimes from cftime._cftime
+            # We no want this. We call private method. We bad.
+            time_start = time_start._to_real_datetime()
+            time_end = time_end._to_real_datetime()
+        except AttributeError:
+            # Not dealing with cftime objects
+            pass
 
         index = pd.date_range(
             start=time_start,
