@@ -1,6 +1,6 @@
 import abc
-import datetime
 import os.path
+import re
 
 from netCDF4 import Dataset, num2date
 
@@ -172,8 +172,31 @@ class CoreNetCDFDataModel(DataModel):
         self.handle.close()
         self.handle = None
 
-    def find(self, what):
-        raise NotImplementedError
+    def _find_vars(self, filterby):
+        _vars = {}
+        _filter_attrs = ('long_name', 'standard_name')
+        with Dataset(self.path, 'r') as nc:
+            if not filterby:
+                return {i: nc[i].long_name for i in nc.variables}
+            for _var in nc.variables:
+                if re.search(filterby, _var, re.IGNORECASE):
+                    _vars[_var] = nc[_var].long_name
+                    continue
+                for _attr in _filter_attrs:
+                    if re.search(filterby, getattr(nc[_var], _attr, ''),
+                                 re.IGNORECASE):
+                        _vars[_var] = nc[_var].long_name
+                        continue
+        return _vars
+
+    def find(self, what, filterby=None):
+        if what.lower() in VARIABLE_STRINGS:
+            return self._find_vars(filterby)
+
+        accepted_strs = VARIABLE_STRINGS
+        raise ValueError('Can\'t search for {}. Accepted values are {}'.format(
+            what, ','.join(accepted_strs)
+        ))
 
     def get(self, *args, **kwargs):
         raise NotImplementedError
