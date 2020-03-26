@@ -21,7 +21,7 @@ VARIABLE_STRINGS = ['variable', 'var', 'variables', 'vars']
 ATTRIBUTE_STRINGS = ['attribute', 'attr', 'attributes', 'attrs']
 GROUP_STRINGS = ['group', 'grp', 'groups', 'grps']
 DIMENSION_STRINGS = ['dimension', 'dim', 'dimensions', 'dims']
-
+ROOT_STRINGS = ['','/']
 
 class DataModel(abc.ABC):
     def __init__(self, path):
@@ -535,24 +535,28 @@ class NetCDFDataModel(DataModel):
 
 
     def _get_vars(self, items, grp=None, filterby=None, findonly=False):
-        """Find variable names in group grp and filter by filterby
+        """Returns sub-dataset containing filtered data variables in group.
 
         Args:
-            items (:obj:`list`): List of variable strings to read. The variable
-                strings should have all path information removed and all be
-                from the same group, grp.
-            grp (:obj:`str`): Path to single group, default is None or the
-                file root.
-            filterby (:obj:`str`): Substring to filter the returned keys by.
-                For attributes and groups this shall be a simple regex on the
-                name of the attributes/groups. For variables it shall also
-                include a `filter_by_attrs()` call to search the `long_name` and
-                `standard_name` attributes.
-            findonly (:obj:`bool`): If True then returns only the names of any
-                valid variables that exist.
+            items (:obj:`list`): List of variable strings to read. The
+                variable strings should have all path information removed
+                and all be from the same group, grp.
+            grp (:obj:`str`): Path to single group, default is None which
+                is the file root. Strings in `ROOT_STRINGS` are not accepted.
+            filterby (:obj:`str`): String to filter the items by. Variables
+                are filtered by the contents of attributes `long_name` and
+                `standard_name` as well as the variable name itself.
+            findonly (:obj:`bool`): If True then returns only a list of the
+                names of any valid variables that exist.
+
         Returns:
-            Dataset of all variables found.
+            Dataset of all variables found or list of variable names if
+            `findonly==True`. If coordinates are not in grp then they shall
+            be returned as dimensions but not coordinates. If no variables
+            in dataset then returns None or [] if `findonly==True`.
         """
+        # Variable attributes to search through
+        search_attr = ['long_name','standard_name']
 
         _fullpath = lambda v: [os.path.join(grp, _v) for _v in v]
 
@@ -567,24 +571,31 @@ class NetCDFDataModel(DataModel):
 
             if filterby == None:
                 rds = ds[[v for v in items if v in ds]]
-                if len(rds.coords) == 0 or len(rds.data_vars) == 0:
-                    return None
             else:
                 # Filter variables by long_name, standard_name and variable name
                 attr_filter = lambda v: v != None and filterby.lower() in v.lower()
 
+                # .. TODO:: I can't get the below to go at the moment
+                # rds_ls = [ds[[v for v in items
+                #              if (v in ds and filterby.lower() in v.lower())]]]
+                # for attr in search_attr:
+                #     rds_ls.append(ds.filter_by_attrs(eval(attr) = attr_filter))
+
                 rds_ln = ds.filter_by_attrs(long_name = attr_filter)
                 rds_sn = ds.filter_by_attrs(standard_name = attr_filter)
                 rds_vn = ds[[v for v in items
-                             if (v in ds and filterby.lower() in v.name.lower())]]
+                             if (v in ds and filterby.lower() in v.lower())]]
 
                 # This is not designed to merge different datasets so insist
-                # in 'identical' variables if sub-datasets overlap.
-                rds = xr.merge([n for n in (rds_ln,rds_sn,rds_vn) if n!=[]],
-                               compat='identical')
+                # on 'identical' variables if sub-datasets overlap.
+                rds = xr.merge([rds_ln,rds_sn,rds_vn], compat='identical')
 
         if findonly:
+            # If rds empty then returns []
             return _fullpath(rds.data_vars)
+
+        if len(rds.coords) == 0 and len(rds.data_vars) == 0:
+            return None
 
         return rds
 
@@ -601,7 +612,7 @@ class NetCDFDataModel(DataModel):
                 /data_group group.
 
                 what == 'attrs' probably is not very useful. Probably better to
-                use `get` as will return None if attribute not found.
+                use `get` as will return None if attribute not found anyway.
 
             filterby (:obj:`str`): Substring to filter the returned keys by.
                 For attributes and groups this shall be a simple regex on the
@@ -640,7 +651,7 @@ class NetCDFDataModel(DataModel):
 
 
 
-    def get(self, items, grp=None, fmt=None, squeeze=True):
+    def get(self, items, grp=None, filterby=None, fmt=None, squeeze=True):
         """Returns item/s from file/group, may be attribute/s or variable/s.
 
         .. warning::
@@ -655,13 +666,18 @@ class NetCDFDataModel(DataModel):
             Attributes given in `item` are group (including root) attributes.
 
         Args:
-            items (:obj:`str` or :obj:`list`): Single variable or list of
-                variable strings to read. The variable string/s may include
-                the full path if groups are involved.
+            items (:obj:`str` or :obj:`list`): Single item or list of
+                item name strings to read. These string/s may include
+                the full path if groups are involved. Items from different
+                groups are permissible but probably not all that useful.
             grp (:obj:`str`): Path to single group, default is None or the
-                file root. The same path is prepended to all items if there
-                are more than one in addition to any path information in the
-                item string/s.
+                file root. The same path is prepended to all items in
+                addition to any path information in the items string/s.
+            filterby (:obj:`str`): String to filter the items by. For
+                attributes and groups this shall be a simple substring
+                search on the name/value of the attributes/groups. Variables
+                are filtered by the contents of attributes `long_name` and
+                `standard_name` as well as the variable name itself.
             fmt (:boj:`str`): Format of nc file output returned. None [default]
                 enables automatic attempt to guess best format.
             squeeze (:obj:`boolean`): If True [default] then returns single
@@ -685,10 +701,12 @@ class NetCDFDataModel(DataModel):
         del grp
 
         # Obtain any path information from `what` arg
+        pdb.set_trace()
         grpings = self._uniq_grps(items)    # tuple of (grps,grps_idx)
 
-        for grp, idx in grpings:
-            self._get_vars([items[i] for i in idx], grp)
+        fred = []
+        for grp, item in zip(*grpings):
+            fred.append(self._get_vars(item, grp, filterby=filterby, findonly=False))
 
         #                                grp))
 
