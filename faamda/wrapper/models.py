@@ -271,7 +271,7 @@ class NetCDFDataModel(DataModel):
                 return _ds.ncattrs()
 
 
-    def _get_attrs(self, attrs, fmt=None, squeeze=True):
+    def _get_attrs(self, items, grp=None, filterby=None, findonly=False):
         """Returns attributes, simples...if only.
 
         This is designed for root/group attributes. If variable attributes are
@@ -279,40 +279,43 @@ class NetCDFDataModel(DataModel):
         include their attributes.
 
         Args:
-            attrs (:obj:`str` or :obj:`list`): Single attribute or list of
-                attribute names to read. The attribute string/s must include
-                the full path if groups are involved. If `attrs` in
-                ['*','group/all'] then all attributes in the root and in group
-                respectively that pass filterby are returned.
-            fmt (:boj:`str`): Format of nc file output returned. None [default]
-                enables automatic attempt to guess best format.
-
-                Not actually used for attributes?
-
-            squeeze (:obj:`boolean`): If True [default] then returns single
-                dataset with variable/s or None if no variables found. If False
-                then returns list, empty or len==1 in these cases. If more than
-                one dataset is found then list of datasets is always returned.
+            items (:obj:`list`): List of attribute name strings to read. The
+                attribute strings should have all path information removed
+                and all be from the same group, grp. If `items in ['*','all']`
+                then all attributes found are returned.
+            grp (:obj:`str`): Path to single group, default is None which
+                is the file root. Strings in `ROOT_STRINGS` are not accepted.
+            filterby (:obj:`str`): String to filter the items by. Attributes
+                are filtered by searching for `filterby` in the attribute
+                name/s as well as the contents of the attributes.
+            findonly (:obj:`bool`): If True then returns only a list of the
+                names of any valid attributes that exist.
 
         Returns:
-            Dictionary of attribute names, with full path, and values. Empty
-            if no matching attributes found. If squeeze is True and only single
-            attribute then just value of attribute returned.
-
-        .. code-block:: python
-
-            >>> self._get_attrs(['institution'])
-            'FAAM'
-            >>> self._get_attrs(['institution','Title'])
-            {'institution': 'FAAM', 'Title': 'Data from c224 on 11-Feb-2020'}
-            >>> self._get_attrs('institution',squeeze=False)
-            {'institution': 'FAAM'}
+            Dictionary of all attribute key:value pairs found or a list of
+            attribute names if `findonly==True`. If no attributes are
+            in dataset then returns None or [] if `findonly==True`.
 
         """
-        if type(attrs) in [str]:
-            _attrs = [attrs]
-        else:
-            _attrs = attrs
+
+        # _fullpath = lambda v: [os.path.join(grp, _v) for _v in v]
+
+        # try:
+        #     ds = xr.open_dataset(self.path, group=grp)
+        # except OSError as err:
+        #     # Generally because grp is not a valid file group
+        #     print(err.errno)
+        #     return None
+
+        # with ds:
+        #     # If wildcard found in items then make items a list of all vars
+        #     if not set(['*','all','ALL']).isdisjoint(items):
+        #         items = list(ds.data_vars.keys())
+
+        #     if filterby == None:
+
+
+
 
         # Obtain path information from attribute strings
         grps, attr_idx = self._uniq_grps(_attrs)
@@ -540,13 +543,14 @@ class NetCDFDataModel(DataModel):
         Args:
             items (:obj:`list`): List of variable strings to read. The
                 variable strings should have all path information removed
-                and all be from the same group, grp. If `items in ['*','all']
+                and all be from the same group, grp. If `items in ['*','all']`
                 then all variables found are returned.
             grp (:obj:`str`): Path to single group, default is None which
                 is the file root. Strings in `ROOT_STRINGS` are not accepted.
             filterby (:obj:`str`): String to filter the items by. Variables
-                are filtered by the contents of attributes `long_name` and
-                `standard_name` as well as the variable name itself.
+                are filtered by searching for `filterby` in the contents of
+                variable attributes `long_name` and `standard_name` as well
+                as the variable name itself.
             findonly (:obj:`bool`): If True then returns only a list of the
                 names of any valid variables that exist.
 
@@ -595,8 +599,13 @@ class NetCDFDataModel(DataModel):
                 rds = xr.merge([rds_ln,rds_sn,rds_vn], compat='identical')
 
         if findonly:
-            # If rds empty then returns []
-            return _fullpath(rds.data_vars)
+            # If rds empty then returns {}
+            # Search for standard variable description attributes. If none
+            # found then add 'no description' dummy string to dict of var names
+            std_attr = ['long_name','standard_name','comment']
+            search_attr = lambda n: [a if a in rds[n].attrs else 'fred'
+                                     for a in std_attr][0]
+            return {os.path.join(grp,n):rds[n].attrs.get(search_attr(n),'no description') for n in rds}
 
         if len(rds.coords) == 0 and len(rds.data_vars) == 0:
             return None
@@ -694,6 +703,16 @@ class NetCDFDataModel(DataModel):
                 key:value pairs. If `squeeze` is True then, if only single
                 variable or attribute then returns single dataset or attribute
                 value.
+
+        .. code-block:: python
+
+            >>> self._get_attrs(['institution'])
+            'FAAM'
+            >>> self._get_attrs(['institution','Title'])
+            {'institution': 'FAAM', 'Title': 'Data from c224 on 11-Feb-2020'}
+            >>> self._get_attrs('institution',squeeze=False)
+            {'institution': 'FAAM'}
+
         """
         if grp in [None,'','/']:
             grp = ''
