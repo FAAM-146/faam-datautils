@@ -540,7 +540,8 @@ class NetCDFDataModel(DataModel):
         Args:
             items (:obj:`list`): List of variable strings to read. The
                 variable strings should have all path information removed
-                and all be from the same group, grp.
+                and all be from the same group, grp. If `items in ['*','all']
+                then all variables found are returned.
             grp (:obj:`str`): Path to single group, default is None which
                 is the file root. Strings in `ROOT_STRINGS` are not accepted.
             filterby (:obj:`str`): String to filter the items by. Variables
@@ -566,8 +567,11 @@ class NetCDFDataModel(DataModel):
             # Generally because grp is not a valid file group
             print(err.errno)
             return None
-
+        pdb.set_trace()
         with ds:
+
+            if items.lower() in ['*','all']:
+                items = list(ds.data_vars.keys())
 
             if filterby == None:
                 rds = ds[[v for v in items if v in ds]]
@@ -635,7 +639,7 @@ class NetCDFDataModel(DataModel):
         grp, _ = self._uniq_grps(what)
 
         if os.path.basename(what).lower() in VARIABLE_STRINGS:
-            return self._find_vars(grp[0], filterby)
+            return self._get_vars('*', grp[0], filterby, findonly=True)
 
         elif os.path.basename(what).lower() in ATTRIBUTE_STRINGS:
             return self._find_attrs(grp[0], filterby)
