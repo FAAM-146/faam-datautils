@@ -193,7 +193,7 @@ class NetCDFDataModel(DataModel):
 
     @staticmethod
     def _uniq_grps(strs):
-        """ Returns list of unique groups/paths from list of strs
+        """ Returns list of unique groups/paths and associated strs basenames
 
         xarray.open_dataset must be called individualy on each group in a file
         which is a bit of a pain.
@@ -202,9 +202,9 @@ class NetCDFDataModel(DataModel):
             strs (:obj:list of `str`): List of strings to obtain paths from.
 
         Returns:
-            grps_uniq (:obj:`list`): List of unique group paths
-            grps_idx (:obj:`list`): List of strs indicies associated with each
-                group in grps_unique.
+            grps_uniq (:obj:`list`): Sorted list of unique group paths.
+            grps_strs (:obj:`list`): List of strs basenames associated with
+            each group in grps_unique.
         """
 
         if type(strs) in [str]:
@@ -213,12 +213,14 @@ class NetCDFDataModel(DataModel):
         # Get list of unique groups.
         _grps, _strs = zip(*sorted([os.path.split(s_) for s_ in strs],
                                     key=lambda g: g[0]))
-
         _grps = [g.replace('/','') for g in _grps[::]]
-        grps_uniq = set(_grps)
-        grps_idx = [[i for i,x in enumerate(_grps)  if x==y] for y in grps_uniq]
 
-        return list(grps_uniq), grps_idx
+        # Create ordered, unique list of group names
+        grps_uniq = list(dict.fromkeys(_grps))
+        grps_strs = [[_strs[i] for i,x in enumerate(_grps)  if x==y]
+                     for y in grps_uniq]
+
+        return grps_uniq, grps_strs
 
 
     def _find_attrs(self, grp=None, filterby=None):
@@ -517,6 +519,61 @@ class NetCDFDataModel(DataModel):
             return list(set(vars_ln).union(vars_sn, vars_vn))
 
 
+    def _get_vars(self, items, grp=None, filterby=None, findonly=False):
+        """Find variable names in group grp and filter by filterby
+
+        Args:
+            items (:obj:`list`): List of variable strings to read. The variable
+                strings should have all path information removed and all be
+                from the same group, grp.
+            grp (:obj:`str`): Path to single group, default is None or the
+                file root.
+            filterby (:obj:`str`): Substring to filter the returned keys by.
+                For attributes and groups this shall be a simple regex on the
+                name of the attributes/groups. For variables it shall also
+                include a `filter_by_attrs()` call to search the `long_name` and
+                `standard_name` attributes.
+            findonly (:obj:`bool`): If True then returns only the names of any
+                valid variables that exist.
+        Returns:
+            Dataset of all variables found.
+        """
+
+        _fullpath = lambda v: [os.path.join(grp, _v) for _v in v]
+
+        try:
+            ds = xr.open_dataset(self.path, group=grp)
+        except OSError as err:
+            # Generally because grp is not a valid file group
+            print(err.errno)
+            return None
+
+        with ds:
+
+            if filterby == None:
+                rds = ds[[v for v in items if v in ds]]
+                if len(rds.coords) == 0 or len(rds.data_vars) == 0:
+                    return None
+            else:
+                # Filter variables by long_name, standard_name and variable name
+                attr_filter = lambda v: v != None and filterby.lower() in v.lower()
+
+                rds_ln = ds.filter_by_attrs(long_name = attr_filter)
+                rds_sn = ds.filter_by_attrs(standard_name = attr_filter)
+                rds_vn = ds[[v for v in items
+                             if (v in ds and filterby.lower() in v.name.lower())]]
+
+                # This is not designed to merge different datasets so insist
+                # in 'identical' variables if sub-datasets overlap.
+                rds = xr.merge([n for n in (rds_ln,rds_sn,rds_vn) if n!=[]],
+                               compat='identical')
+
+        if findonly:
+            return _fullpath(rds.data_vars)
+
+        return rds
+
+
     def find(self, what, filterby=None):
         """Finds requested features in file and returns names of those found
 
@@ -572,7 +629,7 @@ class NetCDFDataModel(DataModel):
 
 
 
-    def get(self, item, grp=None, fmt=None, squeeze=True):
+    def get(self, items, grp=None, fmt=None, squeeze=True):
         """Returns item/s from file/group, may be attribute/s or variable/s.
 
         .. warning::
@@ -587,7 +644,7 @@ class NetCDFDataModel(DataModel):
             Attributes given in `item` are group (including root) attributes.
 
         Args:
-            item (:obj:`str` or :obj:`list`): Single variable or list of
+            items (:obj:`str` or :obj:`list`): Single variable or list of
                 variable strings to read. The variable string/s may include
                 the full path if groups are involved.
             grp (:obj:`str`): Path to single group, default is None or the
@@ -607,68 +664,83 @@ class NetCDFDataModel(DataModel):
                 variable or attribute then returns single dataset or attribute
                 value.
         """
-
-
-        # Obtain any path information from `what` arg
-        grp, _ = self._uniq_grps(what)
-
-
-        guess_fmt = {'str': {'in': [lambda i: type(i) in [str]],
-                             'out': lambda o: str(o)},
-                     'df':  {'in': [lambda i: type(i) in []],
-                             'out': lambda o: o}
-                    }
-
         if grp in [None,'','/']:
             grp = ''
 
-        if type(item) in [str]:
-            items = [os.path.join(grp, item)]
+        if type(items) in [str]:
+            items = [os.path.join(grp, items[::])]
         else:
-            items = [os.path.join(grp, i) for i in item]
+            items = [os.path.join(grp, i) for i in items[::]]
         del grp
 
-        # Get list of unique groups. Unfortunately open_dataset must be called
-        # for each different group.
-        _grps, _items = zip(*sorted([os.path.split(i_) for i_ in items],
-                                    key=lambda g: g[0]))
+        # Obtain any path information from `what` arg
+        grpings = self._uniq_grps(items)    # tuple of (grps,grps_idx)
 
-        _grps = [g.replace('/','') for g in _grps[::]]
-        _grps_uniq = set(_grps)
-        _grps_idx = [[i for i,x in enumerate(_grps)  if x==y] for y in _grps_uniq]
+        for grp, idx in grpings:
+            self._get_vars([items[i] for i in idx], grp)
+
+        #                                grp))
+
+        # # Obtain any path information from `what` arg
+        # grp, _ = self._uniq_grps(what)
 
 
-        iteml = []
-        for idx, grp in zip(_grps_idx, _grps_uniq):
-            # Loop through each group and pass all of the items from that group
-            iteml.append(self._get_var([_items[i] for i in idx],
-                                       grp))
+        # guess_fmt = {'str': {'in': [lambda i: type(i) in [str]],
+        #                      'out': lambda o: str(o)},
+        #              'df':  {'in': [lambda i: type(i) in []],
+        #                      'out': lambda o: o}
+        #             }
 
-        if len(iteml) == 0:
-            # No variables found. Check for attributes
+        # if grp in [None,'','/']:
+        #     grp = ''
 
-            ### TODO:: This is not a very good way of doing this...
+        # if type(item) in [str]:
+        #     items = [os.path.join(grp, item)]
+        # else:
+        #     items = [os.path.join(grp, i) for i in item]
+        # del grp
 
-            for idx, grp in zip(_grps_idx, _grps_uniq):
-                # Loop through each group and pass all of the items from that group
-                iteml.append(self._get_attr([_items[i] for i in idx],
-                                            grp))
+        # # Get list of unique groups. Unfortunately open_dataset must be called
+        # # for each different group.
+        # _grps, _items = zip(*sorted([os.path.split(i_) for i_ in items],
+        #                             key=lambda g: g[0]))
 
-            if squeeze and len(iteml) == 0:
-                return None
-            if squeeze and len(iteml) == 1:
-                # Return only value of single attribute found
-                # squeeze should not be used if multiple unknown attribute keys
-                # are passed in as a single returned value could belong to any...
-                return iteml[iteml.keys()[0]]
+        # _grps = [g.replace('/','') for g in _grps[::]]
+        # _grps_uniq = set(_grps)
+        # _grps_idx = [[i for i,x in enumerate(_grps)  if x==y] for y in _grps_uniq]
 
-        else:
-            # Returning variable/s
-            if squeeze and len(iteml) == 1:
-                # If only single dataset then extract from list and return
-                return iteml[0]
 
-        return iteml
+        # iteml = []
+        # for idx, grp in zip(_grps_idx, _grps_uniq):
+        #     # Loop through each group and pass all of the items from that group
+        #     iteml.append(self._get_var([_items[i] for i in idx],
+        #                                grp))
+
+        # if len(iteml) == 0:
+        #     # No variables found. Check for attributes
+
+        #     ### TODO:: This is not a very good way of doing this...
+
+        #     for idx, grp in zip(_grps_idx, _grps_uniq):
+        #         # Loop through each group and pass all of the items from that group
+        #         iteml.append(self._get_attr([_items[i] for i in idx],
+        #                                     grp))
+
+        #     if squeeze and len(iteml) == 0:
+        #         return None
+        #     if squeeze and len(iteml) == 1:
+        #         # Return only value of single attribute found
+        #         # squeeze should not be used if multiple unknown attribute keys
+        #         # are passed in as a single returned value could belong to any...
+        #         return iteml[iteml.keys()[0]]
+
+        # else:
+        #     # Returning variable/s
+        #     if squeeze and len(iteml) == 1:
+        #         # If only single dataset then extract from list and return
+        #         return iteml[0]
+
+        # return iteml
 
 
     def _get_ds(self,grp=None):
@@ -769,26 +841,26 @@ class NetCDFDataModel(DataModel):
 
 
 
-    def _get_var(self, var, grp=None):
-        """Reads requested variable/s from file/group or None if nonexistant.
+    # def _get_var(self, var, grp=None):
+    #     """Reads requested variable/s from file/group or None if nonexistant.
 
-        """
+    #     """
 
-        try:
-            ds = xr.open_dataset(self.path, group=grp) # self.file?
-        except OSError as err:
-            # Generally because grp is not a valid file group
-            print(err.errno)
-            return None
+    #     try:
+    #         ds = xr.open_dataset(self.path, group=grp) # self.file?
+    #     except OSError as err:
+    #         # Generally because grp is not a valid file group
+    #         print(err.errno)
+    #         return None
 
-        with ds:
-            # discard any variables that are not in ds
-            # this also discards any attributes
-            ds_var = ds[[v for v in var if v in ds]]
-            if len(ds_var.coords) == 0 or len(ds_var.data_vars) == 0:
-                return None
+    #     with ds:
+    #         # discard any variables that are not in ds
+    #         # this also discards any attributes
+    #         ds_var = ds[[v for v in var if v in ds]]
+    #         if len(ds_var.coords) == 0 or len(ds_var.data_vars) == 0:
+    #             return None
 
-        return ds_var
+    #     return ds_var
 
     def __getitem__(self, item):
 
