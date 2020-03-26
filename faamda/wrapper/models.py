@@ -567,10 +567,10 @@ class NetCDFDataModel(DataModel):
             # Generally because grp is not a valid file group
             print(err.errno)
             return None
-        pdb.set_trace()
-        with ds:
 
-            if items.lower() in ['*','all']:
+        with ds:
+            # If wildcard found in items then make items a list of all vars
+            if not set(['*','all','ALL']).isdisjoint(items):
                 items = list(ds.data_vars.keys())
 
             if filterby == None:
