@@ -198,8 +198,29 @@ class CoreNetCDFDataModel(DataModel):
             what, ','.join(accepted_strs)
         ))
 
-    def get(self, *args, **kwargs):
-        raise NotImplementedError
+    def get(self, items=None, context=None):
+        if type(items) is str:
+            items = [items]
+
+        if context is None:
+            if not items:
+                raise ValueError('Neither items or context given')
+            return self[items]
+
+        _ret_dict = {}
+        with Dataset(self.path, 'r') as nc:
+            if context not in nc.variables:
+                raise ValueError('Invalid context: {}'.format(context))
+
+            if not items:
+                for attr in nc[context].ncattrs():
+                    _ret_dict[attr] = getattr(nc[context], attr)
+                return _ret_dict
+
+            for item in items:
+                _ret_dict[item] = getattr(nc[context], item, None)
+
+        return _ret_dict
 
 
 class NetCDFDataModel(DataModel):
