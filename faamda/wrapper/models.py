@@ -16,12 +16,17 @@ __all__ = ['CoreNetCDFDataModel',
 
 IS_ATTRIBUTE = 101
 IS_VARIABLE = 102
+IS_GROUP = 103
+IS_DIMENSION = 104
 
 VARIABLE_STRINGS = ['variable', 'var', 'variables', 'vars']
 ATTRIBUTE_STRINGS = ['attribute', 'attr', 'attributes', 'attrs']
 GROUP_STRINGS = ['group', 'grp', 'groups', 'grps']
 DIMENSION_STRINGS = ['dimension', 'dim', 'dimensions', 'dims']
-ROOT_STRINGS = ['','/']
+ROOT_STRINGS = ['', '/']
+
+# Variable attribute names to search when filtering by attribute
+SEARCH_ATTRS = ['long_name', 'standard_name', 'comment']
 
 class DataModel(abc.ABC):
     def __init__(self, path):
@@ -240,9 +245,10 @@ class NetCDFDataModel(DataModel):
             strs (:obj:list of `str`): List of strings to obtain paths from.
 
         Returns:
-            grps_uniq (:obj:`list`): Sorted list of unique group paths.
-            grps_strs (:obj:`list`): List of strs basenames associated with
-            each group in grps_unique.
+            grps_uniq (:obj:`list`): Sorted list of unique group paths. If
+                root group then returns path ''.
+            grps_strs (:obj:`list`): List of lists of strs' basenames
+                associated with each group in grps_unique.
         """
 
         if type(strs) in [str]:
@@ -259,6 +265,66 @@ class NetCDFDataModel(DataModel):
                      for y in grps_uniq]
 
         return grps_uniq, grps_strs
+
+
+    def _parent_coords(self, items, grp=None):
+        """ Finds coordinates in parent group/s for variables in subgroup
+
+        """
+
+        pdb.set_trace()
+        # Initialise coordinates dataset
+        coords = xr.Dataset.from_dict({})
+        if grp in ROOT_STRINGS:
+            grp = None
+        try:
+            ds = xr.open_dataset(self.path, group=grp)
+        except OSError as err:
+            # Generally because grp is not a valid file group
+            print(err.errno)
+            return None
+
+        with ds:
+            # Create dataset dimensions for all variables in items
+            # that are not already in coords. This way any coordinates
+            # in child groups have presidence over those in parents
+            coords = ds[[v for v in items if (v in ds and v in ds[v].coords)]]
+            dims = ds[[v for v in items
+                       if (v in ds and v not in ds[v].coords)]].dims
+
+
+
+        while True:
+            if grp in ROOT_STRINGS:
+                grp = None
+            try:
+                ds = xr.open_dataset(self.path, group=grp)
+            except OSError as err:
+                # Generally because grp is not a valid file group
+                print(err.errno)
+                return None
+
+                with ds:
+
+                    coords = xr.merge([coords.copy(),
+                                       ds[[d for d in dims if d in ds.coords]]])
+
+                if len(coords) < len(dims):
+                    grp = os.path.relpath('..',grp[::])
+                elif grp == None:
+                    break
+                else:
+                    break
+
+        return coords
+
+        with Dataset(self.path, 'r') as ds:
+
+            # Find all dimensions for variables vars
+            dims = set(*[ds[grp][v].get_dims() for v in vars if v in ds[grp]])
+
+
+            while
 
 
     def _find_attrs(self, grp=None, filterby=None):
@@ -295,10 +361,10 @@ class NetCDFDataModel(DataModel):
 
 
     def _get_attrs(self, items, grp=None, filterby=None, findonly=False):
-        """Returns attributes, simples...if only.
+        """Returns filtered attributes in group.
 
         This is designed for root/group attributes. If variable attributes are
-        required then use `self._get_variables()` as the returned variables
+        required then use `self._get_vars()` as the returned variables
         include their attributes.
 
         Args:
@@ -320,53 +386,43 @@ class NetCDFDataModel(DataModel):
             in dataset then returns None or [] if `findonly==True`.
 
         """
+        with Dataset(self.path, 'r') as _ds:
+            if grp == [None]+ROOT_STRINGS:
+                ds = _ds
+                grp = ''
+            else:
+                try:
+                    ds = _ds[grp]
+                except IndexError as err:
+                    print(err)
+                    return None
 
-        # _fullpath = lambda v: [os.path.join(grp, _v) for _v in v]
+            if not set(['*','all','ALL']).isdisjoint(items):
+                # If wildcard found in items then return all attributes in grp
+                rattr = {os.path.join(grp,a):v for a,v in ds.__dict__.items()}
+            else:
+                # Return items that are an attribute in group
+                rattr = {os.path.join(grp,a):v for a,v in ds.__dict__.items()
+                         if a in items}
 
-        # try:
-        #     ds = xr.open_dataset(self.path, group=grp)
-        # except OSError as err:
-        #     # Generally because grp is not a valid file group
-        #     print(err.errno)
-        #     return None
+        if filterby:
+            # Search attribute name and contents for filterby string and remove
+            # any items in rattr that do not match
+            d_keys = [k for k,v in rattr.items()
+                      if re.search(filterby,
+                                   '{} {}'.format(k,v),
+                                   re.IGNORECASE) == None]
+            for k in d_keys:
+                rattr.pop(k)
 
-        # with ds:
-        #     # If wildcard found in items then make items a list of all vars
-        #     if not set(['*','all','ALL']).isdisjoint(items):
-        #         items = list(ds.data_vars.keys())
+        if findonly:
+            # If rattr empty then returns []
+            return sorted(rattr.keys())
 
-        #     if filterby == None:
+        if len(rattr) == 0:
+            return None
 
-
-
-
-        # Obtain path information from attribute strings
-        grps, attr_idx = self._uniq_grps(_attrs)
-
-        with Dataset(self.path, 'r') as ds:
-            attr_d = {}
-            for attr_l, grp in zip(_attrs[attr_idx], grps):
-                if grp in [None,'','/']:
-                    _ds = ds
-                else:
-                    try:
-                        _ds = ds[grp]
-                    except IndexError as err:
-                        print(err)
-                        continue
-
-                if set(['*','all','ALL']).isdisjoint(attrs_l):
-                    attr_d.update({a:_ds.getncattr(os.path.basename(a)) for a
-                                   in attrs_l if a in _ds.ncattrs()})
-                else:
-                    # Return all attributes in group
-                    attr_d.update({a:_ds.getncattr(os.path.basename(a)) for a
-                                   in _ds.ncattrs()})
-
-        if squeeze and len(attr_d) == 1:
-            return attr_d.value
-        else:
-            return attr_d
+        return rattr
 
 
     def _find_dims(self, grp=None, filterby=None):
@@ -407,6 +463,9 @@ class NetCDFDataModel(DataModel):
 
             return grpvar_func(dims_l)
 
+    def _get_dims(self, grp=None, filterby=None):
+
+        pass
 
     def _find_grps(self, grp=None, filterby=None):
         """Find group names in group grp and filter by filterby
@@ -498,68 +557,6 @@ class NetCDFDataModel(DataModel):
             return attr_d
 
 
-    def _find_vars(self, grp=None, filterby=None):
-        """Find variable names in group grp and filter by filterby
-
-        Args:
-            grp (:obj:`str`): Path to single group, default is None or the
-                file root.
-            filterby (:obj:`str`): Substring to filter the returned keys by.
-                For attributes and groups this shall be a simple regex on the
-                name of the attributes/groups. For variables it shall also
-                include a `filter_by_attrs()` call to search the `long_name` and
-                `standard_name` attributes.
-
-        Returns:
-            List of variables, with full path, or [] if nothing found.
-
-        """
-
-        # Func for producing list of var inc path.
-        # Yet again root is handled differently, thus the conditional.
-        grpvar_func = lambda vlist: \
-            [os.path.join(_ds[v].group().name, v) if _ds!=ds else v for v in vlist]
-
-        with Dataset(self.path, 'r') as ds:
-            # Should opening file be in calling method?
-            if grp in [None,'','/']:
-                _ds = ds
-            else:
-                try:
-                    _ds = ds[grp]
-                except IndexError as err:
-                    print(err)
-                    return []
-
-            if filterby == None:
-                return grpvar_func(_ds.variables)
-
-            # Search for variables and filter by long_name, standard_name, and variable name
-            attr_filter = lambda v: v != None and filterby.lower() in v.lower()
-
-            vars_ln = [v.name for v in _ds.get_variables_by_attributes(long_name = attr_filter)]
-            try:
-                vars_ln = grpvar_func(vars_ln[::])
-            except KeyError as err:
-                # group is 'empty' as is the root so no name attribute
-                # is there a better catch for this?
-                pass
-
-            vars_sn = [v.name for v in _ds.get_variables_by_attributes(standard_name = attr_filter)]
-            try:
-                vars_sn = grpvar_func(vars_sn[::])
-            except KeyError as err:
-                pass
-
-            vars_vn = [v for v in _ds.variables if filterby.lower() in v.lower()]
-            try:
-                vars_vn = grpvar_func(vars_vn[::])
-            except KeyError as err:
-                pass
-
-            return list(set(vars_ln).union(vars_sn, vars_vn))
-
-
     def _get_vars(self, items, grp=None, filterby=None, findonly=False):
         """Returns sub-dataset containing filtered data variables in group.
 
@@ -572,22 +569,18 @@ class NetCDFDataModel(DataModel):
                 is the file root. Strings in `ROOT_STRINGS` are not accepted.
             filterby (:obj:`str`): String to filter the items by. Variables
                 are filtered by searching for `filterby` in the contents of
-                variable attributes `long_name` and `standard_name` as well
-                as the variable name itself.
-            findonly (:obj:`bool`): If True then returns only a list of the
-                names of any valid variables that exist.
+                variable attributes in SEARCH_ATTRS as well as the variable
+                name itself.
+            findonly (:obj:`bool`): If True then returns only a dictionary of
+                names:description of any valid variables that exist.
 
         Returns:
-            Dataset of all variables found or list of variable names if
-            `findonly==True`. If coordinates are not in grp then they shall
-            be returned as dimensions but not coordinates. If no variables
-            in dataset then returns None or [] if `findonly==True`.
+            Dataset of all variables found or dictionary of variable name:
+            variable description string pairs if `findonly==True`. If
+            coordinates are not in grp then they shall be returned as
+            dimensions but not coordinates. If no variables in dataset then
+            returns None or {} if `findonly==True`.
         """
-        # Variable attributes to search through
-        search_attr = ['long_name','standard_name']
-
-        _fullpath = lambda v: [os.path.join(grp, _v) for _v in v]
-
         try:
             ds = xr.open_dataset(self.path, group=grp)
         except OSError as err:
@@ -609,26 +602,30 @@ class NetCDFDataModel(DataModel):
                 # .. TODO:: I can't get the below to go at the moment
                 # rds_ls = [ds[[v for v in items
                 #              if (v in ds and filterby.lower() in v.lower())]]]
-                # for attr in search_attr:
+                # for attr in SEARCH_ATTRS:
                 #     rds_ls.append(ds.filter_by_attrs(eval(attr) = attr_filter))
 
                 rds_ln = ds.filter_by_attrs(long_name = attr_filter)
                 rds_sn = ds.filter_by_attrs(standard_name = attr_filter)
+                rds_c  = ds.filter_by_attrs(comment = attr_filter)
                 rds_vn = ds[[v for v in items
-                             if (v in ds and filterby.lower() in v.lower())]]
+                             if (v in ds and re.search(filterby,
+                                                       v,
+                                                       re.IGNORECASE)!=None)]]
 
                 # This is not designed to merge different datasets so insist
                 # on 'identical' variables if sub-datasets overlap.
-                rds = xr.merge([rds_ln,rds_sn,rds_vn], compat='identical')
+                rds = xr.merge([rds_ln, rds_sn, rds_c, rds_vn],
+                               compat='identical')
 
         if findonly:
             # If rds empty then returns {}
             # Search for standard variable description attributes. If none
             # found then add 'no description' dummy string to dict of var names
-            std_attr = ['long_name','standard_name','comment']
             search_attr = lambda n: [a if a in rds[n].attrs else 'fred'
-                                     for a in std_attr][0]
-            return {os.path.join(grp,n):rds[n].attrs.get(search_attr(n),'no description') for n in rds}
+                                     for a in SEARCH_ATTRS][0]
+            return {os.path.join(grp,n):rds[n].attrs.get(search_attr(n),
+                                                         'no description') for n in rds}
 
         if len(rds.coords) == 0 and len(rds.data_vars) == 0:
             return None
@@ -636,25 +633,29 @@ class NetCDFDataModel(DataModel):
         return rds
 
 
-    def find(self, what, filterby=None):
+    def find(self, what, grp=None, filterby=None):
         """Finds requested features in file and returns names of those found
 
         Args:
             what (:obj:`str`): Type of feature to find in self. Must be in
-                ['variables', 'vars', 'attributes', 'attrs', 'groups', 'grps'].
-                Note that if requesting feature in a subgroup of root then the
-                path should be prepended to the string,
+                one of VARIABLE_STRINGS, ATTRIBUTE_STRINGS, GROUP_STRINGS,
+                DIMENSION_STRINGS. If requesting feature in a subgroup of
+                root then the path can be prepended to the string,
                 eg 'data_group/variables' will return variable names in
                 /data_group group.
 
-                what == 'attrs' probably is not very useful. Probably better to
-                use `get` as will return None if attribute not found anyway.
+                .. NOTE::
+                    what == 'attrs' is not very useful. Probably better to
+                    use `get` as will return None if attribute not found anyway.
 
+            grp (:obj:`str`): Path to single group, default is None or the
+                file root. This path is prepended to `what` in
+                addition to any path information in the `what` string.
             filterby (:obj:`str`): Substring to filter the returned keys by.
                 For attributes and groups this shall be a simple regex on the
                 name of the attributes/groups. For variables it shall also
-                include a `filter_by_attrs()` call to search the `long_name` and
-                `standard_name` attributes.
+                include a `filter_by_attrs()` call to search the `long_name`
+                and `standard_name` attributes.
 
             .. example::
                 find('variables','water vapour') returns ['WVSS2F_VMR',
@@ -667,45 +668,58 @@ class NetCDFDataModel(DataModel):
             List of variable, attribute, or group names or [] if nothing found.
 
         """
-        # Obtain any path information from `what` arg
-        grp, _ = self._uniq_grps(what)
+        if grp in [None]+ROOT_STRINGS:
+            _grp, _what = self._uniq_grps(what)
+        else:
+            _grp, _what = self._uniq_grps(os.path.join(grp,what))
 
-        if os.path.basename(what).lower() in VARIABLE_STRINGS:
-            return self._get_vars('*', grp[0], filterby, findonly=True)
+        grp = _grp[0]
+        what = _what[0][0]
 
-        elif os.path.basename(what).lower() in ATTRIBUTE_STRINGS:
-            return self._find_attrs(grp[0], filterby)
+        if what.lower() in VARIABLE_STRINGS:
+            return self._get_vars('*', grp, filterby, findonly=True)
 
-        elif os.path.basename(what).lower() in GROUP_STRINGS:
-            return self._find_grps(grp[0], filterby)
+        elif what.lower() in ATTRIBUTE_STRINGS:
+            return self._get_attrs('*', grp, filterby, findonly=True)
 
-        elif os.path.basename(what).lower() in DIMENSION_STRINGS:
-            return self._find_dims(grp[0], filterby)
+        elif what.lower() in GROUP_STRINGS:
+            raise NotImplementedError
+            #return self._find_grps(grp, filterby)
+
+        elif what.lower() in DIMENSION_STRINGS:
+            raise NotImplementedError
+            #return self._find_dims(grp, filterby)
 
         else:
             raise NotImplementedError
-
 
 
     def get(self, items, grp=None, filterby=None, fmt=None, squeeze=True):
         """Returns item/s from file/group, may be attribute/s or variable/s.
 
         .. warning::
-            Note that requesting both a variable(s) and an attribute(s) does not
-            make any sense. If requesting a variable, a dataset is returned. If
-            requesting an attribute, the value of that attribute is returned. So
-            these two are incompatible. If both variables and attributes are
-            included in item then the attribute request is discarded.
+            Note that requesting both a variable(s) and an attribute(s) does
+            not make any sense. If requesting a variable, a dataset is
+            returned. If requesting an attribute, the value of that attribute
+            is returned. So these two are incompatible. If both variables
+            and attributes are included in `items` then the attribute request
+            is discarded.
+
+            This doesn't actually have to happen as each group is in a different
+            object in an interable. So there's nothing to stop the return of
+            variables from one group and attributes from another. Messy though.
 
         .. note::
             Variable attributes are returned automatically with the variables.
-            Attributes given in `item` are group (including root) attributes.
+            Attributes given in `items` are group (including root) attributes.
 
         Args:
             items (:obj:`str` or :obj:`list`): Single item or list of
                 item name strings to read. These string/s may include
                 the full path if groups are involved. Items from different
                 groups are permissible but probably not all that useful.
+                If `items in ['*','all']` then all variables found are
+                returned.
             grp (:obj:`str`): Path to single group, default is None or the
                 file root. The same path is prepended to all items in
                 addition to any path information in the items string/s.
@@ -722,10 +736,15 @@ class NetCDFDataModel(DataModel):
                 one dataset is found then list of datasets is always returned.
 
         Returns:
-            If `squeeze` is False then list of datasets or dictionary of attribute
-                key:value pairs. If `squeeze` is True then, if only single
-                variable or attribute then returns single dataset or attribute
-                value.
+            If `squeeze` is False then returns;
+
+                    * a dictionary of group:datasets pairs or
+                    * a dictionary of attribute name:value pairs.
+                    *
+
+                If `squeeze` is True and the len of the above iterables is 1
+                then returns a single dataset, attribute, etc. If the len > 1
+                then squeeze makes no difference.
 
         .. code-block:: python
 
@@ -737,22 +756,78 @@ class NetCDFDataModel(DataModel):
             {'institution': 'FAAM'}
 
         """
-        if grp in [None,'','/']:
+        # Map item type to appropriate getter
+        _map = {IS_VARIABLE: self._get_vars,
+                IS_ATTRIBUTE: self._get_attrs,
+                IS_GROUP: self._get_groups,
+                IS_DIMENSION: self._get_dims}
+
+        if grp in [None]+ROOT_STRINGS:
             grp = ''
 
         if type(items) in [str]:
             items = [os.path.join(grp, items[::])]
         else:
             items = [os.path.join(grp, i) for i in items[::]]
-        del grp
 
-        # Obtain any path information from `what` arg
         pdb.set_trace()
-        grpings = self._uniq_grps(items)    # tuple of (grps,grps_idx)
+        grps, grp_items = self._uniq_grps(items)
 
-        fred = []
-        for grp, item in zip(*grpings):
-            fred.append(self._get_vars(item, grp, filterby=filterby, findonly=False))
+        def _get_type(nc, item):
+
+            if item.lower() in ['*','all']:
+                return IS_VARIABLE
+            if item in nc.variables:
+                return IS_VARIABLE
+            if item in nc.ncattrs():
+                return IS_ATTRIBUTE
+            if item in nc.dimensions:
+                return IS_DIMENSION
+            else:
+                # Work out how to determine if is a group dataset
+                pdb.set_trace()
+
+            raise KeyError('{} not found'.format(item))
+
+        # Determine item types for each group, ignore if inconsistent types
+        # within a single group
+        grp_types = []
+        with Dataset(self.path, 'r') as _ds:
+            for _grp, _items in zip(grps, grp_items):
+                if _grp == '':
+                    ds = _ds
+                else:
+                    try:
+                        ds = _ds[_grp]
+                    except IndexError as err:
+                        print(err)
+                        continue
+
+                types = [_get_type(ds, item) for item in _items]
+                if types.count(types[0]) != len(types):
+                    raise ValueError('Cannot mix variables and attributes')
+
+                grp_types.append(types[0])
+
+        # Loop through each group and return item values
+        rd = {}
+        for _grp, _items, _type in zip(grps, grp_items, grp_types):
+
+            rd[_grp] = _map[_type](_items, _grp, filterby, False)
+
+
+
+        pdb.set_trace()
+
+
+
+
+
+
+
+
+
+
 
         #                                grp))
 
@@ -959,31 +1034,6 @@ class NetCDFDataModel(DataModel):
     """
 
 
-### No workie!! Properties cannot accept args
-
-    @property
-    def groups(self, grp=None):
-        """ Returns subgroups of grp.
-
-        Args:
-            grp (:obj:`str`): Path to single group within the nc file. If grp
-                in [None,'','/'] then returns subgroups of root. Default is
-                None.
-
-        Returns:
-            List of subgroup paths. These are the complete path from the root.
-            Returns empty list if no groups are found.
-        """
-
-        # If grp already in self.groups then just extract and return
-        _groups = [g for g in self.groups \
-                   if grp.lower() == os.path.dirname(g).lower()]
-        if len(_groups) == 0:
-            _groups = self._get_groups(grp)
-
-        return _groups
-
-
     @property
     def allgroups(self):
         """Returns paths to all groups within a file
@@ -997,12 +1047,6 @@ class NetCDFDataModel(DataModel):
             for value in top.groups.values():
                 for children in walktree(value):
                     yield children
-
-
-    @property
-    def dims(self):
-        return self._dims
-
 
 
 
