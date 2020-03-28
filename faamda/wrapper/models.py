@@ -289,13 +289,18 @@ class NetCDFDataModel(DataModel):
 
 
     def _parent_coords(self, items, grp=None):
-        """ Finds coordinates in parent group/s for variables in subgroup
+        """ Finds coordinates of items in parent group/s
+
+        Args:
+            items (:obj:`list`): List of variable strings to read. The
+                variable strings should have all path information removed
+                and all be from the same group, grp.
+            grp (:obj:`str`): Path to single group, default is None which
+                is the file root. Strings in `ROOT_STRINGS` are not accepted.
+
+        Returns:
 
         """
-
-        pdb.set_trace()
-        # Initialise coordinates dataset
-        coords = xr.Dataset.from_dict({})
         if grp in ROOT_STRINGS:
             grp = None
         try:
@@ -306,16 +311,15 @@ class NetCDFDataModel(DataModel):
             return None
 
         with ds:
-            # Create dataset dimensions for all variables in items
-            # that are not already in coords. This way any coordinates
-            # in child groups have presidence over those in parents
-            coords = ds[[v for v in items if (v in ds and v in ds[v].coords)]]
-            dims = ds[[v for v in items
-                       if (v in ds and v not in ds[v].coords)]].dims
+            # Initialise coords dataset with any coordinates that exist
+            # Compare with those required for items
+            # Coordinate obj do not contain variable attributes. However,
+            # since this is initialising the coords, these coordinates are
+            # already contained in the dataset and so have all of their attr
+            coords_req = ds.coords
+            dims_req = ds[items].dims
 
-
-
-        while True:
+        while len(coords_req) < len(dims_req):
             if grp in ROOT_STRINGS:
                 grp = None
             try:
@@ -323,29 +327,17 @@ class NetCDFDataModel(DataModel):
             except OSError as err:
                 # Generally because grp is not a valid file group
                 print(err.errno)
-                return None
-
+            else:
                 with ds:
+                    _coords = ds[[v for v in ds.coords
+                                  if (v in dims_req and v not in coords_req)]]
+                    coords_req = coords_req.merge(_coords)
 
-                    coords = xr.merge([coords.copy(),
-                                       ds[[d for d in dims if d in ds.coords]]])
+            if grp == None:
+                break
+            grp = os.path.split(grp)[0]
 
-                if len(coords) < len(dims):
-                    grp = os.path.relpath('..',grp[::])
-                elif grp == None:
-                    break
-                else:
-                    break
-
-        return coords
-
-        with Dataset(self.path, 'r') as ds:
-
-            # Find all dimensions for variables vars
-            dims = set(*[ds[grp][v].get_dims() for v in vars if v in ds[grp]])
-
-
-            while
+        return coords_req
 
 
     def _find_attrs(self, grp=None, filterby=None):
@@ -650,6 +642,11 @@ class NetCDFDataModel(DataModel):
 
         if len(rds.coords) == 0 and len(rds.data_vars) == 0:
             return None
+
+        if len(rds.coords) != len(rds.dims):
+            # Coordinates are in a parent group so need to find
+            rds_coords = self._parent_coords(list(rds.keys()), grp)
+            rds = xr.merge([rds,red_coords])
 
         return rds
 
