@@ -145,7 +145,7 @@ class CoreNetCDFDataModel(DataModel):
 
         try:
             # Newer (?) versions of netCDF4 give datetimes from cftime._cftime
-            # We no want this. We call private method. We bad.
+            # We no want this. We call private method. Dave bad.
             time_start = time_start._to_real_datetime()
             time_end = time_end._to_real_datetime()
         except AttributeError:
