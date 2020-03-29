@@ -583,7 +583,26 @@ class NetCDFDataModel(DataModel):
             return attr_d
 
 
-    def _get_vars(self, items, grp=None, filterby=None, findonly=False):
+    def _find_vars(self, items, grp=None, filterby=None):
+        """ Returns dictionary of variable name:variable description pairs
+
+        """
+        ds = self._get_vars(items, grp, filterby)
+        if ds is None:
+            return None
+
+        # If ds empty then returns {}.
+        # Search for standard variable description attributes. If none
+        # found then add 'no description' dummy string to dict of var names
+        search_attr = lambda n: [a if a in ds[n].attrs else 'fred'
+                                 for a in SEARCH_ATTRS][0]
+        v = {os.path.join(grp,n):ds[n].attrs.get(search_attr(n),
+                                                 'no description') for n in ds}
+
+        return v
+
+
+    def _get_vars(self, items, grp=None, filterby=None):
         """Returns sub-dataset containing filtered data variables in group.
 
         Args:
@@ -644,15 +663,6 @@ class NetCDFDataModel(DataModel):
                 rds = xr.merge([rds_ln, rds_sn, rds_c, rds_vn],
                                compat='identical')
 
-        if findonly:
-            # If rds empty then returns {}
-            # Search for standard variable description attributes. If none
-            # found then add 'no description' dummy string to dict of var names
-            search_attr = lambda n: [a if a in rds[n].attrs else 'fred'
-                                     for a in SEARCH_ATTRS][0]
-            return {os.path.join(grp,n):rds[n].attrs.get(search_attr(n),
-                                                         'no description') for n in rds}
-
         if len(rds.coords) == 0 and len(rds.data_vars) == 0:
             return None
 
@@ -708,7 +718,7 @@ class NetCDFDataModel(DataModel):
         what = _what[0][0]
 
         if what.lower() in VARIABLE_STRINGS:
-            return self._get_vars('*', grp, filterby, findonly=True)
+            return self._find_vars('*', grp, filterby)
 
         elif what.lower() in ATTRIBUTE_STRINGS:
             return self._get_attrs('*', grp, filterby, findonly=True)
@@ -844,7 +854,7 @@ class NetCDFDataModel(DataModel):
         rd = {}
         for _grp, _items, _type in zip(grps, grp_items, grp_types):
 
-            rd[_grp] = _map[_type](_items, _grp, filterby, False)
+            rd[_grp] = _map[_type](_items, _grp, filterby)
 
 
         print('end get()')
