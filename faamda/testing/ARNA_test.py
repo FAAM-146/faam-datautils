@@ -49,27 +49,60 @@ grps = []
 core_items = ['fred/SW_UP_C','TDEW_CR2','TDEW_CR2']    # Core nc3
 ccp_items = ['CDP_CONC','CDP_FLAG']     # Core Cloud nc3
 
-pdb.set_trace()
-
 fred = faam[flight].core
 bob = faam[flight].ccp
 alice = faam[flight].ccpCIP15
+
+pdb.set_trace()
+
+# Sort out proper test data files and turn into unit tests?
+
+# Test non-existant group
+try:
+    fred_find1 = fred.find('vars','fred')
+except IndexError as err:
+    print(err)
+
+# Test attribute find
+bob_find1 = bob.find('attrs')
+
+# Test sub-group variables find
+alice_find1 = alice.find('PADS_group/vars',filterby='diameter')
+
+# Test root variable get
+alice_get1 = alice.get(['altitude'])
+
+# Test group get + parent coordinate, unsqueezed
+alice_get2 = alice.get('PADS_group',squeeze=False)
+
+# Test group get, squeezed
+alice_get3 = alice.get('PADS_group',squeeze=True)
+
+# Test filtering
+alice_get4 = alice.get('PADS_group/*',filterby='flag')  # Why is None?
+
+# Test attribute single group
+alice_get5 = alice.get(['institution','title'])
+
+# Test mixed type in single group
+try:
+    alice_get6 = alice.get(['institution','altitude'])
+except ValueError as err:
+    print(err)
+
+# Test mixed types in multiple groups
+try:
+    alice_get7 = alice.get(['institution','PADS_group/cip15_lwc_pads'])
+except ValueError as err:
+    print(err)
+
+# Test variables in multiple groups
+alice_get8 = alice.get(['altitude','PADS_group/cip15_lwc_pads'])
+
+pdb.set_trace()
 
 with faam[flight].core.raw as nc:
   # treat nc as if you'd done Dataset(corefile, 'r') as nc:
   time = nc['Time'][:]
 
 
-pdb.set_trace()
-
-tc = faam[flight].core._get_time()
-tccp = faam[flight].ccp.time()
-tccpCIP15 = faam[flight].ccpCIP15.time('pads_raw')
-
-
-CIP15groups = faam[flight].ccpCIP15._get_groups()
-
-
-fred = faam[flight].core[core_items]
-
-pdb.set_trace()
