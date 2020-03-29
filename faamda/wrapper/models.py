@@ -382,13 +382,12 @@ class NetCDFDataModel(DataModel):
             filterby (:obj:`str`): String to filter the items by. Attributes
                 are filtered by searching for `filterby` in the attribute
                 name/s as well as the contents of the attributes.
-            findonly (:obj:`bool`): If True then returns only a list of the
-                names of any valid attributes that exist.
 
         Returns:
-            Dictionary of all attribute key:value pairs found or a list of
-            attribute names if `findonly==True`. If no attributes are
-            in dataset then returns None or [] if `findonly==True`.
+            Dictionary of all attribute key:value pairs found or {}.
+
+        Raises:
+            Index error if group grp not found in dataset.
 
         """
         with Dataset(self.path, 'r') as _ds:
@@ -399,8 +398,8 @@ class NetCDFDataModel(DataModel):
                 try:
                     ds = _ds[grp]
                 except IndexError as err:
-                    print(err)
-                    return None
+                    # Group grp not in _ds
+                    raise
 
             if not set(['*','all','ALL']).isdisjoint(items):
                 # If wildcard found in items then return all attributes in grp
@@ -419,9 +418,6 @@ class NetCDFDataModel(DataModel):
                                    re.IGNORECASE) == None]
             for k in d_keys:
                 rattr.pop(k)
-
-        if len(rattr) == 0:
-            return None
 
         return rattr
 
@@ -591,22 +587,23 @@ class NetCDFDataModel(DataModel):
                 are filtered by searching for `filterby` in the contents of
                 variable attributes in SEARCH_ATTRS as well as the variable
                 name itself.
-            findonly (:obj:`bool`): If True then returns only a dictionary of
-                names:description of any valid variables that exist.
 
         Returns:
-            Dataset of all variables found or dictionary of variable name:
-            variable description string pairs if `findonly==True`. If
-            coordinates are not in grp then they shall be returned as
-            dimensions but not coordinates. If no variables in dataset then
-            returns None or {} if `findonly==True`.
+            Dataset of all variables found or an empty dataset if no
+            variables in dataset.
+
+        Raises:
+            OSError if attempt to open netCDF file with a nonexistant group.
+
+        .. TODO::
+            Should netCDF4 and xr group errors be made consistent? Currently
+            IndexError from netCDF4 and OSError from xarray.
         """
         try:
             ds = xr.open_dataset(self.path, group=grp)
         except OSError as err:
             # Generally because grp is not a valid file group
-            print(err.errno)
-            return None
+            raise
 
         with ds:
             # If wildcard found in items then make items a list of all vars
@@ -786,7 +783,6 @@ class NetCDFDataModel(DataModel):
         else:
             items = [os.path.join(grp, i) for i in items[::]]
 
-        pdb.set_trace()
         grps, grp_items = self._uniq_grps(items)
 
         def _get_type(nc, item):
@@ -816,11 +812,14 @@ class NetCDFDataModel(DataModel):
                     try:
                         ds = _ds[_grp]
                     except IndexError as err:
-                        print(err)
-                        continue
+                        # grp does not exist in _ds. Probably want a better
+                        # way of dealing with multi-group items.
+                        raise
 
                 types = [_get_type(ds, item) for item in _items]
                 if types.count(types[0]) != len(types):
+                    # Mixed types in single group. Probably want a better
+                    # way of dealing with multi-group items.
                     raise ValueError('Cannot mix variables and attributes')
 
                 grp_types.append(types[0])
@@ -828,12 +827,9 @@ class NetCDFDataModel(DataModel):
         # Loop through each group and return item values
         rd = {}
         for _grp, _items, _type in zip(grps, grp_items, grp_types):
-
             rd[_grp] = _map[_type](_items, _grp, filterby)
 
-
-        print('end get()')
-        pdb.set_trace()
+        return rd
 
 
     def _get_ds(self,grp=None):
