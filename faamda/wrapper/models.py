@@ -353,40 +353,19 @@ class NetCDFDataModel(DataModel):
         return coords_req
 
 
-    def _find_attrs(self, grp=None, filterby=None):
-        """Find attribute names in group grp and filter by filterby
-
-        Args:
-            grp (:obj:`str`): Path to single group, default is None or the
-                file root.
-            filterby (:obj:`str`): Substring to filter the returned keys by.
-                For attributes and groups this shall be a simple regex on the
-                name of the attributes/groups. For variables it shall also
-                include a `filter_by_attrs()` call to search the `long_name` and
-                `standard_name` attributes.
-
-        Returns:
-            List of attribute names, with full path, or [] if nothing found.
+    def _find_attrs(self, items, grp=None, filterby=None):
+        """ Returns list of attribute names.
 
         """
-        with Dataset(self.path, 'r') as ds:
-            # Should opening file be in calling method?
-            if grp in [None,'','/']:
-                _ds = ds
-            else:
-                try:
-                    _ds = ds[grp]
-                except IndexError as err:
-                    print(err)
-                    return []
+        d = self._get_attrs(items, grp, filterby)
+        if d is None:
+            return None
 
-            if filterby:
-                return [a for a in _ds.ncattrs() if filterby.lower() in a.lower()]
-            else:
-                return _ds.ncattrs()
+        # If d empty then returns []
+        return sorted(d.keys())
 
 
-    def _get_attrs(self, items, grp=None, filterby=None, findonly=False):
+    def _get_attrs(self, items, grp=None, filterby=None):
         """Returns filtered attributes in group.
 
         This is designed for root/group attributes. If variable attributes are
@@ -413,7 +392,7 @@ class NetCDFDataModel(DataModel):
 
         """
         with Dataset(self.path, 'r') as _ds:
-            if grp == [None]+ROOT_STRINGS:
+            if grp in [None]+ROOT_STRINGS:
                 ds = _ds
                 grp = ''
             else:
@@ -440,10 +419,6 @@ class NetCDFDataModel(DataModel):
                                    re.IGNORECASE) == None]
             for k in d_keys:
                 rattr.pop(k)
-
-        if findonly:
-            # If rattr empty then returns []
-            return sorted(rattr.keys())
 
         if len(rattr) == 0:
             return None
@@ -584,7 +559,7 @@ class NetCDFDataModel(DataModel):
 
 
     def _find_vars(self, items, grp=None, filterby=None):
-        """ Returns dictionary of variable name:variable description pairs
+        """ Returns dictionary of variable name:variable description pairs.
 
         """
         ds = self._get_vars(items, grp, filterby)
@@ -721,7 +696,7 @@ class NetCDFDataModel(DataModel):
             return self._find_vars('*', grp, filterby)
 
         elif what.lower() in ATTRIBUTE_STRINGS:
-            return self._get_attrs('*', grp, filterby, findonly=True)
+            return self._find_attrs('*', grp, filterby)
 
         elif what.lower() in GROUP_STRINGS:
             raise NotImplementedError
