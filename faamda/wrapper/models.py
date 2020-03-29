@@ -16,13 +16,13 @@ __all__ = ['CoreNetCDFDataModel',
 
 IS_ATTRIBUTE = 101
 IS_VARIABLE = 102
-IS_GROUP = 103
-IS_DIMENSION = 104
+IS_DIMENSION = 103
+IS_GROUP = 104
 
-VARIABLE_STRINGS = ['variable', 'var', 'variables', 'vars']
 ATTRIBUTE_STRINGS = ['attribute', 'attr', 'attributes', 'attrs']
-GROUP_STRINGS = ['group', 'grp', 'groups', 'grps']
+VARIABLE_STRINGS = ['variable', 'var', 'variables', 'vars']
 DIMENSION_STRINGS = ['dimension', 'dim', 'dimensions', 'dims']
+GROUP_STRINGS = ['group', 'grp', 'groups', 'grps']
 ROOT_STRINGS = ['', '/']
 
 # Variable attribute names to search when filtering by attribute
@@ -387,7 +387,7 @@ class NetCDFDataModel(DataModel):
             Dictionary of all attribute key:value pairs found or {}.
 
         Raises:
-            Index error if group grp not found in dataset.
+            IndexError if group grp not found in dataset.
 
         """
         with Dataset(self.path, 'r') as _ds:
@@ -460,9 +460,11 @@ class NetCDFDataModel(DataModel):
 
             return grpvar_func(dims_l)
 
+
     def _get_dims(self, grp=None, filterby=None):
 
         pass
+
 
     def _find_grps(self, grp=None, filterby=None):
         """Find group names in group grp and filter by filterby
@@ -502,56 +504,51 @@ class NetCDFDataModel(DataModel):
         return grpvar_func(grp_l)
 
 
-    def _get_grps(self, grps, fmt='xr', squeeze=True):
-        """Returns dictionary of datasets associated with each group in grps.
+    def _get_grps(self, items, grp=None, filterby=None):
+        """Returns dictionary of datasets associated with each group in grp.
 
         Args:
-            grps (:obj:`str` or :obj:`list`): Single group name or list of
-                groups to interogate. Root is indicated by either '' or '/'.
-            fmt (:boj:`str`): Format of nc file output returned. Should be
-                one of 'pd' for a pandas dataframe or 'xr' [default] for an
-                xarray dataset.
-            squeeze (:obj:`boolean`): If True [default] reduces dimensionality
-                when possible.
+            items (:obj:`list`): List of group strings. The strings should
+                have all path information removed and all be from the same
+                group, grp. If `items in ['*','all']` then all groups found
+                are returned.
+            grp (:obj:`str`): Path to single group, default is None which
+                is the file root. Strings in `ROOT_STRINGS` are not accepted.
+            filterby (:obj:`str`): String to filter the items by. Groups
+                are filtered by searching for `filterby` in the group name/s.
 
         Returns:
-                If squeeze is True then returns single dataset with variable/s
-                or None if no groups or group variables found. If False
-                then returns dictionary, empty or len==1 in these cases. If more
-                than one group is found then list of datasets is always
-                returned. Dictionary keys are the groups in grp.
+            Dictionary of group:dataset pairs, one for each group found or
+            an empty dictionary if no groups found.
 
+        Raises:
+            IndexError if group grp not found in dataset.
         """
+        with Dataset(self.path, 'r') as _ds:
+            if grp in [None]+ROOT_STRINGS:
+                ds = _ds
+                grp = ''
+            else:
+                try:
+                    ds = _ds[grp]
+                except IndexError as err:
+                    # Group grp not in _ds
+                    raise
 
-        ### Not written yet
+            if not set(['*','all','ALL']).isdisjoint(items):
+                items = list(ds.groups.keys())
 
-        if type(attrs) in [str]:
-            _grps = [grps]
-        else:
-            _grps = grps
+            if filterby:
+                _grps = [ds[g].path for g in items
+                         if (g in ds.groups and re.search(filterby,
+                                                         g,
+                                                         re.IGNORECASE)!=None)]
+            else:
+                _grps = [ds[g].path for g in items if g in ds.groups]
 
-        # Obtain path information from attribute strings
-        grps, attr_idx = self._uniq_grps(_attrs)
 
-        with Dataset(self.path, 'r') as ds:
-            attr_d = {}
-            for attr_l, grp in zip(_attrs[attr_idx], grps):
-                if grp in [None,'','/']:
-                    _ds = ds
-                else:
-                    try:
-                        _ds = ds[grp]
-                    except IndexError as err:
-                        print(err)
-                        continue
-
-            attr_d.update({a:_ds.getncattr(os.path.basename(a)) for a
-                           in attrs_l if a in _ds.ncattrs()})
-
-        if squeeze and len(attr_d) == 1:
-            return attr_d.value
-        else:
-            return attr_d
+        return {g:xr.load_dataset(self.path,
+                                  group=os.path.basename(g)) for g in _grps}
 
 
     def _find_vars(self, items, grp=None, filterby=None):
@@ -704,7 +701,8 @@ class NetCDFDataModel(DataModel):
             #return self._find_dims(grp, filterby)
 
         else:
-            raise NotImplementedError
+            raise ValueError('Unknown nc feature requested. Should be one '
+                             "of 'attrs', 'vars', 'dims', 'groups'.")
 
 
     def get(self, items, grp=None, filterby=None, fmt=None, squeeze=True):
@@ -715,8 +713,7 @@ class NetCDFDataModel(DataModel):
             not make any sense. If requesting a variable, a dataset is
             returned. If requesting an attribute, the value of that attribute
             is returned. So these two are incompatible. If both variables
-            and attributes are included in `items` then the attribute request
-            is discarded.
+            and attributes are included in `items` a ValueError is raised.
 
             This doesn't actually have to happen as each group is in a different
             object in an interable. So there's nothing to stop the return of
@@ -741,23 +738,34 @@ class NetCDFDataModel(DataModel):
                 search on the name/value of the attributes/groups. Variables
                 are filtered by the contents of attributes `long_name` and
                 `standard_name` as well as the variable name itself.
-            fmt (:boj:`str`): Format of nc file output returned. None [default]
-                enables automatic attempt to guess best format.
+            fmt (:obj:`str`): Format of nc file output returned. None [default]
+                or 'xr' then returns xarray Dataset. If 'pd' then returns
+                pandas dataframe. If 'np' returns dictionary of numpy arrays
+                of all variables.
             squeeze (:obj:`boolean`): If True [default] then returns single
                 dataset with variable/s or None if no variables found. If False
                 then returns list, empty or len==1 in these cases. If more than
                 one dataset is found then list of datasets is always returned.
 
         Returns:
-            If `squeeze` is False then returns;
+            If `squeeze` is False then returns a dictionary is returned with
+                the key being the group path. For each group key the item
+                depends on what is being requested and may be;
 
-                    * a dictionary of group:datasets pairs or
-                    * a dictionary of attribute name:value pairs.
-                    *
+                    * for attributes, a dictionary of attribute name:value
+                    pairs.
+                    * for variables, a dictionary of group:datasets pairs
+                    * for groups, a dictionary of group: dataset pairs, the
+                    dataset of which is the entire group.
 
                 If `squeeze` is True and the len of the above iterables is 1
                 then returns a single dataset, attribute, etc. If the len > 1
                 then squeeze makes no difference.
+
+        Raises:
+            IndexError: If group grp is not found in netCDF file.
+            ValueError: If both variables and attributes are requested from
+                the same group.
 
         .. code-block:: python
 
@@ -772,7 +780,7 @@ class NetCDFDataModel(DataModel):
         # Map item type to appropriate getter
         _map = {IS_VARIABLE: self._get_vars,
                 IS_ATTRIBUTE: self._get_attrs,
-                IS_GROUP: self._get_groups,
+                IS_GROUP: self._get_grps,
                 IS_DIMENSION: self._get_dims}
 
         if grp in [None]+ROOT_STRINGS:
@@ -795,12 +803,12 @@ class NetCDFDataModel(DataModel):
                 return IS_ATTRIBUTE
             if item in nc.dimensions:
                 return IS_DIMENSION
-            else:
-                # Work out how to determine if is a group dataset
-                pdb.set_trace()
+            if item in nc.groups:
+                return IS_GROUP
 
             raise KeyError('{} not found'.format(item))
 
+        pdb.set_trace()
         # Determine item types for each group, ignore if inconsistent types
         # within a single group
         grp_types = []
@@ -827,38 +835,20 @@ class NetCDFDataModel(DataModel):
         # Loop through each group and return item values
         rd = {}
         for _grp, _items, _type in zip(grps, grp_items, grp_types):
-            rd[_grp] = _map[_type](_items, _grp, filterby)
+            rd[os.path.join('/',_grp)] = _map[_type](_items, _grp, filterby)
+
+            if fmt == None or fmt.lower() in ['xr','xarray']:
+                pass
+            elif fmt.lower() in ['pd','pandas']:
+                # Some error checking required?
+                rd[_grp] = rd[_grp].to_dataframe()
+            elif fmt.lower() in ['np','numpy']:
+                raise NotImplementedError
+
+        if squeeze and len(rd) == 1:
+            return rd[list(rd.keys())[0]]
 
         return rd
-
-
-    def _get_ds(self,grp=None):
-        """Sets entire dataset for group.
-
-        Note that this uses load_dataset so that the nc file is closed
-        immediately.
-
-        """
-        if grp in [None,'','/']:
-            grp = None
-
-        try:
-            self.ds = xr.load_dataset(self.path,group=grp)
-        except OSError as err:
-            # Generally because grp is not a valid file group
-            print(err.errno)
-            #self.time = None # or leave undefined?
-
-
-    def _get_df(self,grp=None):
-        """Sets entire dataframe for group.
-
-        Just converts a xr.dataset into a pd.dataframe. Some file attributes
-        shall be lost in the translation.
-
-        """
-        self.df = self._get_ds(grp).to_dataframe()
-
 
 
     def _get_time(self,grp=None):
@@ -889,43 +879,36 @@ class NetCDFDataModel(DataModel):
                 self.time = ds[time_var[0]]
 
 
-    def time(self,grp=None):
 
-        if self.time == None:
-            self._get_time(grp=grp)
+    # def _get_groups(self, grp=None):
+    #     """Determines groups contained within grp of netCDF.
 
-        return self.time
+    #     Any additional groups are appended to the list of groups contained in
+    #     self.groups. These strings are the complete paths.
 
+    #     Args:
+    #         grp (:obj:`str`): Path to single group within the nc file. If grp
+    #             in [None,'','/'] then returns subgroups of root. Default is
+    #             None.
 
-    def _get_groups(self, grp=None):
-        """Determines groups contained within grp of netCDF.
+    #     Returns:
+    #         List of subgroup paths. These are the complete path from the root.
+    #         Returns empty list if no groups are found.
 
-        Any additional groups are appended to the list of groups contained in
-        self.groups. These strings are the complete paths.
+    #     """
+    #     _groups = set(self.groups)
 
-        Args:
-            grp (:obj:`str`): Path to single group within the nc file. If grp
-                in [None,'','/'] then returns subgroups of root. Default is
-                None.
+    #     with Dataset(file, 'r') as ds:
+    #         if grp in [None,'','/']:
+    #             _groups.update([ds[g].path for g in ds.groups.keys()])
+    #         else:
+    #             try:
+    #                 _groups.update(
+    #                     [ds[grp][g].path for g in ds[grp].groups.keys()])
+    #             except IndexError as err:
+    #                 print(err)
 
-        Returns:
-            List of subgroup paths. These are the complete path from the root.
-            Returns empty list if no groups are found.
-
-        """
-        _groups = set(self.groups)
-
-        with Dataset(file, 'r') as ds:
-            if grp in [None,'','/']:
-                _groups.update([ds[g].path for g in ds.groups.keys()])
-            else:
-                try:
-                    _groups.update(
-                        [ds[grp][g].path for g in ds[grp].groups.keys()])
-                except IndexError as err:
-                    print(err)
-
-        self.groups = list(_groups)
+    #     self.groups = list(_groups)
 
 
 
