@@ -438,27 +438,28 @@ class NetCDFDataModel(DataModel):
             List of dimension names, with full path, or [] if nothing found.
 
         """
-        # Will this work if v is a dimension but not a coordinate?
-        grpvar_func = lambda vlist: \
-            [os.path.join(_ds[v].group().name, v) if _ds!=ds else v for v in vlist]
+        pass
+        # # Will this work if v is a dimension but not a coordinate?
+        # grpvar_func = lambda vlist: \
+        #     [os.path.join(_ds[v].group().name, v) if _ds!=ds else v for v in vlist]
 
-        with Dataset(self.path, 'r') as ds:
-            # Should opening file be in calling method?
-            if grp in [None,'','/']:
-                _ds = ds
-            else:
-                try:
-                    _ds = ds[grp]
-                except IndexError as err:
-                    print(err)
-                    return []
+        # with Dataset(self.path, 'r') as ds:
+        #     # Should opening file be in calling method?
+        #     if grp in [None,'','/']:
+        #         _ds = ds
+        #     else:
+        #         try:
+        #             _ds = ds[grp]
+        #         except IndexError as err:
+        #             print(err)
+        #             return []
 
-            if filterby:
-                dims_l = [d for d in _ds.dimensions.keys() if filterby.lower() in d.lower()]
-            else:
-                dims_l = list(_ds.dimensions.keys())
+        #     if filterby:
+        #         dims_l = [d for d in _ds.dimensions.keys() if filterby.lower() in d.lower()]
+        #     else:
+        #         dims_l = list(_ds.dimensions.keys())
 
-            return grpvar_func(dims_l)
+        #     return grpvar_func(dims_l)
 
 
     def _get_dims(self, grp=None, filterby=None):
@@ -482,26 +483,27 @@ class NetCDFDataModel(DataModel):
             List of group names, with full path, or [] if nothing found.
 
         """
-        grpvar_func = lambda vlist: \
-            [os.path.join(_ds[v].path, v) if _ds!=ds else v for v in vlist]
+        pass
+        # grpvar_func = lambda vlist: \
+        #     [os.path.join(_ds[v].path, v) if _ds!=ds else v for v in vlist]
 
-        with Dataset(self.path, 'r') as ds:
-            # Should opening file be in calling method?
-            if grp in [None,'','/']:
-                _ds = ds
-            else:
-                try:
-                    _ds = ds[grp]
-                except IndexError as err:
-                    print(err)
-                    return []
+        # with Dataset(self.path, 'r') as ds:
+        #     # Should opening file be in calling method?
+        #     if grp in [None,'','/']:
+        #         _ds = ds
+        #     else:
+        #         try:
+        #             _ds = ds[grp]
+        #         except IndexError as err:
+        #             print(err)
+        #             return []
 
-            if filterby:
-                grp_l = [g for g in _ds.groups.keys() if filterby.lower() in g.lower()]
-            else:
-                grp_l = list(_ds.groups.keys())
+        #     if filterby:
+        #         grp_l = [g for g in _ds.groups.keys() if filterby.lower() in g.lower()]
+        #     else:
+        #         grp_l = list(_ds.groups.keys())
 
-        return grpvar_func(grp_l)
+        # return grpvar_func(grp_l)
 
 
     def _get_grps(self, items, grp=None, filterby=None):
@@ -546,9 +548,13 @@ class NetCDFDataModel(DataModel):
             else:
                 _grps = [ds[g].path for g in items if g in ds.groups]
 
+        rd = {}
+        for _grp in _grps:
+            _rds = xr.load_dataset(self.path, group=os.path.basename(_grp))
+            _rds_coords = self._parent_coords(list(_rds.keys()), _grp)
+            rd[_grp] = xr.merge([_rds,_rds_coords])
 
-        return {g:xr.load_dataset(self.path,
-                                  group=os.path.basename(g)) for g in _grps}
+        return rd
 
 
     def _find_vars(self, items, grp=None, filterby=None):
@@ -808,7 +814,6 @@ class NetCDFDataModel(DataModel):
 
             raise KeyError('{} not found'.format(item))
 
-        pdb.set_trace()
         # Determine item types for each group, ignore if inconsistent types
         # within a single group
         grp_types = []
