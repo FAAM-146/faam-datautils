@@ -291,6 +291,11 @@ class NetCDFDataModel(DataModel):
     def _parent_coords(self, items, grp=None):
         """ Finds coordinates of items in parent group/s
 
+        .. NOTE::
+            It would probably be faster to have this as a @staticmethod and
+            pass it the netCDF4 dataset. Then not re-opening file. However
+            are netCDF4 coords compatable with xr.Coordinates?
+
         Args:
             items (:obj:`list`): List of variable strings to read. The
                 variable strings should have all path information removed
@@ -299,7 +304,8 @@ class NetCDFDataModel(DataModel):
                 is the file root. Strings in `ROOT_STRINGS` are not accepted.
 
         Returns:
-
+            Dataset of coordinates. Should be merged in calling method. There
+            probably should be some catch for if the wrong coords are found?
         """
         if grp in ROOT_STRINGS:
             grp = None
@@ -320,6 +326,13 @@ class NetCDFDataModel(DataModel):
             dims_req = ds[items].dims
 
         while len(coords_req) < len(dims_req):
+            # Step up one level in path
+            try:
+                grp = os.path.split(grp)[0]
+            except TypeError as err:
+                # Because grp is None
+                break
+
             if grp in ROOT_STRINGS:
                 grp = None
             try:
@@ -329,13 +342,13 @@ class NetCDFDataModel(DataModel):
                 print(err.errno)
             else:
                 with ds:
+                    # Add coordinate that is the same name and length as that
+                    # required and is not already in coords_req
                     _coords = ds[[v for v in ds.coords
-                                  if (v in dims_req and v not in coords_req)]]
+                                  if (v in dims_req and
+                                      len(ds[v]) == dims_req[v] and
+                                      v not in coords_req)]]
                     coords_req = coords_req.merge(_coords)
-
-            if grp == None:
-                break
-            grp = os.path.split(grp)[0]
 
         return coords_req
 
@@ -646,7 +659,7 @@ class NetCDFDataModel(DataModel):
         if len(rds.coords) != len(rds.dims):
             # Coordinates are in a parent group so need to find
             rds_coords = self._parent_coords(list(rds.keys()), grp)
-            rds = xr.merge([rds,red_coords])
+            rds = xr.merge([rds,rds_coords])
 
         return rds
 
@@ -834,7 +847,7 @@ class NetCDFDataModel(DataModel):
             rd[_grp] = _map[_type](_items, _grp, filterby, False)
 
 
-
+        print('end get()')
         pdb.set_trace()
 
 
