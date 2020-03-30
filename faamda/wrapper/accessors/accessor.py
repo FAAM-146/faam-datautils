@@ -5,6 +5,7 @@ from .. import wrapper
 
 class DataAccessor(object):
     model = CoreNetCDFDataModel
+    fileattrs = ('version', 'revision', 'freq')
     regex = None
 
     def __init__(self, flight):
@@ -19,9 +20,20 @@ class DataAccessor(object):
         return self.model(self.file)[item]
 
     def _autoset_file(self):
-        self._version = max([i.version for i in self._filtered_files])
-        self._revision = max([i.revision for i in self._filtered_files])
-        self._freq = max([i.freq for i in self._filtered_files])
+        try:
+            self._version = max([i.version for i in self._filtered_files])
+        except (TypeError, ValueError):
+            pass
+
+        try:
+            self._revision = max([i.revision for i in self._filtered_files])
+        except (TypeError, ValueError):
+            pass
+
+        try:
+            self._freq = max([i.freq for i in self._filtered_files])
+        except (TypeError, ValueError):
+            pass
 
     def get(self, *args, **kwargs):
         """
@@ -50,7 +62,7 @@ class DataAccessor(object):
     @property
     def _filtered_files(self):
         _files = self._files
-        for attr in ('version', 'revision', 'freq'):
+        for attr in self.fileattrs:
 
             if getattr(self, attr) is not None:
                 _files = list(filter(
@@ -101,7 +113,7 @@ class DataAccessor(object):
     def file(self):
         _files = self._files
 
-        for attr in ('version', 'revision', 'freq'):
+        for attr in self.fileattrs:
             if getattr(self, attr) is not None:
                 _files = list(filter(
                     lambda x: getattr(x, attr) == getattr(self, attr),

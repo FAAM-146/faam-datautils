@@ -63,6 +63,11 @@ class FAAMFile(object):
                 except (IndexError, KeyError, ValueError):
                     self._freq = FULL_FREQ
 
+                try:
+                    self._ext = _match['ext']
+                except (IndexError, KeyError, ValueError):
+                    self._ext = None
+
     def __str__(self):
         return self._path
 
@@ -76,6 +81,10 @@ class FAAMFile(object):
     @property
     def version(self):
         return self._version
+
+    @property
+    def ext(self):
+        return self._ext
 
     @property
     def freq(self):

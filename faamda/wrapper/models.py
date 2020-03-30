@@ -1,4 +1,6 @@
 import abc
+import csv
+import datetime
 import os.path
 import re
 
@@ -873,14 +875,12 @@ class FltSumDataModel(DataModel):
 
     """
     def __enter__(self):
-        #self.handle = Dataset(self.path, 'r')
-        #return self.handle
-        pass
+        self.handle = open(self.path, 'r')
+        return self.handle
 
     def __exit__(self, *args):
-        #self.handle.close()
-        #self.handle = None
-        pass
+        self.handle.close()
+        self.handle = None
 
     def __getitem__(self, item):
         """
@@ -888,28 +888,44 @@ class FltSumDataModel(DataModel):
         """
         pass
 
+    def _get(self):
+        return getattr(self, '_get_{}'.format(self.path.split('.')[-1]))
+
     def _get_csv(self):
-        """ Reads .csv flight summary and puts contents into self.fltsum.
-
         """
-        df = pd.read_csv(self.path,
-                         index_col='Start',
-                         skipinitialspace=True,
-                         skip_blank_lines=True,
-                         parse_dates=['Start','Stop'],
-                         error_bad_lines=False)
+        Returns .csv flight summary
+        """
 
-        df.sort_index(inplace=True)
+        _fieldnames = [
+            'event', 'start_time', 'start_hdg', 'start_height', 'start_lat',
+            'start_lon', 'stop_time', 'stop_hdg', 'stop_height', 'stop_lat',
+            'stop_lon', 'comment'
+        ]
 
-        # Create cols for event numbers
-        df['Run'] = [float(e.split(' ')[-1])
-                     if e.split(' ')[0].lower() == 'run' else np.nan
-                     for e in df['Event']]
-        df['Profile'] = [float(e.split(' ')[-1])
-                         if e.split(' ')[0].lower() == 'profile' else np.nan
-                         for e in df['Event']]
+        ret_list = []
+        with open(self.path, 'r') as _csv:
+            reader = csv.DictReader(_csv, fieldnames=_fieldnames)
+            for row in reader:
+                ret_list.append(row)
 
-        self.fltsum = df
+        for item in ret_list[1:]:
+            for var in ('start_time', 'stop_time'):
+                if not item[var]:
+                    item[var] = None
+                    continue
+                item[var] = datetime.datetime.strptime(
+                    item[var], '%Y-%m-%d %H:%M:%S'
+                )
+
+            for var_t in ('start', 'stop'):
+                for var_o in ('hdg', 'height', 'lat', 'lon'):
+                    var = '{}_{}'.format(var_t, var_o)
+                    if not item[var]:
+                        item[var] = None
+                        continue
+                    item[var] = float(item[var])
+
+        return sorted(ret_list[1:], key=lambda x: x['start_time'])
 
     def _get_txt(self):
         """  Reads .txt flight summary and puts contents into self.fltsum.
@@ -922,15 +938,7 @@ class FltSumDataModel(DataModel):
         """
 
         """
-        try:
-            self.fltsum
-        except AttributeError as err:
-            if self.ext.lower() == 'csv':
-                self._get_csv()
-            elif self.ext.lower() == 'txt':
-                self._get_txt()
-
-        return self.fltsum
+        return self._get()()
 
 
     def find(self):

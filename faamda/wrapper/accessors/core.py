@@ -130,63 +130,56 @@ class CoreFltSumAccessor(DataAccessor):
     """Accessor for FAAM core flight summary file
 
     """
-    hook = 'corefltsum'
+    hook = 'fltsum'
     # Override default model in accessor.DataAccessor()
     model = FltSumDataModel
+    fileattrs = ('revision', 'ext')
     regex = ('^flight-sum_faam_(?P<date>\d{8})_'
              'r(?P<revision>\d+)_(?P<flightnum>[a-z]\d{3}).(?P<ext>csv|txt)$')
 
+    def __init__(self, flight):
+        self._ext = None
+        super().__init__(flight)
 
-    def _get_profiles(self, items):
-        """ Returns start/end times of requested run/s.
+    def _autoset_file(self):
+        _exts = [i.ext for i in self._files]
+        if 'csv' in _exts:
+            self.ext = 'csv'
+        else:
+            self.ext = 'txt'
 
-        """
-        pass
+        super()._autoset_file()
 
+    @property
+    def ext(self):
+        return self._ext
 
-    def _get_runs(self, items):
-        """ Returns start/end times of requested run/s.
+    @ext.setter
+    def ext(self, val):
+        self._ext = val
 
-        """
-        pass
-
+    def _get_maneuver(self, kind):
+        _fltsum = self.get()
+        return [
+            i for i in _fltsum
+            if kind.lower() in i['event'].lower()
+            and i['stop_time'] is not None
+        ]
 
     @property
     def runs(self):
-        """ Returns start/end times of all runs
-
-        """
-        return self._get_runs(items='*')
+        return self._get_maneuver('run')
 
     @property
     def profiles(self):
-        """ Returns start/end times of all profiles
+        return self._get_maneuver('profile')
 
-        """
-        return self._get_profiles(items='*')
+    @property
+    def orbits(self):
+        return self._get_maneuver('orbit')
 
-
-    def _get_event(self, items):
-        """ Returns start (and end if applicable) time/s of event item.
-
-        """
-        try:
-            self.fltsum
-        except AttributeError as err:
-            if self.ext.lower() == 'csv':
-                self._get_csv()
-            elif self.ext.lower() == 'txt':
-                self._get_txt()
-
-        df = self.fltsum
-
-        if type(items) in [str]:
-            items = [items]
-
-        event_mask = np.column_stack([self.fltsum['Event'].str.contains(item,
-                                                                        case=False)
-                                      for item in items])
-        event_rows = df.loc[event_mask.any(axis=1)]
+    @property
+    def nevzorov(self):
+        return [i for i in self.runs if 'nevz' in i['comment'].lower()]
 
 
-        # blah blah blah
