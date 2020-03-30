@@ -678,7 +678,6 @@ class NetCDFDataModel(DataModel):
             return self._find_attrs('*', grp, filterby)
 
         elif what.lower() in GROUP_STRINGS:
-            # Return all groups within file
             return self._find_grps()
 
         elif what.lower() in DIMENSION_STRINGS:
@@ -754,9 +753,9 @@ class NetCDFDataModel(DataModel):
 
         .. code-block:: python
 
-            >>> self._get_attrs(['institution'])
+            >>> self.get(['institution'])
             'FAAM'
-            >>> self._get_attrs(['institution','Title'])
+            >>> self.get(['institution','Title'])
             {'institution': 'FAAM', 'Title': 'Data from c224 on 11-Feb-2020'}
             >>> self._get_attrs('institution',squeeze=False)
             {'institution': 'FAAM'}
@@ -779,7 +778,6 @@ class NetCDFDataModel(DataModel):
         grps, grp_items = self._uniq_grps(items)
 
         def _get_type(nc, item):
-
             if item.lower() in ['*','all']:
                 return IS_VARIABLE
             if item in nc.variables:
@@ -874,4 +872,72 @@ class FltSumDataModel(DataModel):
     This is the data model for the models.CoreFltSumAccessor()
 
     """
-    pass
+    def __enter__(self):
+        #self.handle = Dataset(self.path, 'r')
+        #return self.handle
+        pass
+
+    def __exit__(self, *args):
+        #self.handle.close()
+        #self.handle = None
+        pass
+
+    def __getitem__(self, item):
+        """
+        Return a variable.
+        """
+        pass
+
+    def _get_csv(self):
+        """ Reads csv flight summary and puts contents into self.fltsum
+
+        """
+        df = pd.read_csv(self.path,
+                         index_col='Start',
+                         skipinitialspace=True,
+                         skip_blank_lines=True,
+                         parse_dates=['Start','Stop'],
+                         error_bad_lines=False)
+
+        df.sort_index(inplace=True)
+
+        # Create cols for event numbers
+        df['Run'] = [float(e.split(' ')[-1])
+                     if e.split(' ')[0].lower() == 'run' else np.nan
+                     for e in df['Event']]
+        df['Profile'] = [float(e.split(' ')[-1])
+                         if e.split(' ')[0].lower() == 'profile' else np.nan
+                         for e in df['Event']]
+
+        self.fltsum = df
+
+
+    def _get_runs(self):
+        """ Returns times of runs
+
+        """
+        pass
+
+    def _get_profiles(self):
+        """ Returns times of runs
+
+        """
+        pass
+
+    def get(self):
+        """
+        Just returns the entire flight summary at the mo
+        """
+        try:
+            self.fltsum
+        except AttributeError as err:
+            self._get_csv()
+        finally:
+            return self.fltsum
+
+
+    def find(self):
+        """
+
+        """
+        pass
