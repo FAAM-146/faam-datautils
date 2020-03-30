@@ -231,21 +231,10 @@ class CoreNetCDFDataModel(DataModel):
 class NetCDFDataModel(DataModel):
     """Returns requested data or metadata from path
 
-    The form of the returned data is selectable by the user and can range
-    from a numpy array in the simplest case to a xarray.dataset which
-    includes all of the group and variable attributes. Properties that
-    return data will make some sort of decision about what type of data
-    to return. If;
-        attribute then return value
-        attributes then return dictionary of key:values
-        1-dim variable/s then return pandas dataframe [default]
-        n-dim variable/s then return xarray dataset
+    Generalised netCDF model which will handle netCDF4 files with groups.
+    Default format is xr.Dataset as these will contain all group and
+    variable attributes.
     """
-
-    # def __init__(self):
-
-    #     self.time = None
-    #     self.groups = []    # should this be ['/']?
 
     def __enter__(self):
         self.handle = Dataset(self.path, 'r')
@@ -254,6 +243,10 @@ class NetCDFDataModel(DataModel):
     def __exit__(self, *args):
         self.handle.close()
         self.handle = None
+
+    def __getitem__(self, item):
+        return self.get(item, squeeze=True)
+
 
     @staticmethod
     def _uniq_grps(strs):
@@ -468,42 +461,29 @@ class NetCDFDataModel(DataModel):
 
 
     def _find_grps(self, grp=None, filterby=None):
-        """Find group names in group grp and filter by filterby
+        """Returns paths to all groups within a file.
 
-        Args:
-            grp (:obj:`str`): Path to single group, default is None or the
-                file root.
-            filterby (:obj:`str`): Substring to filter the returned keys by.
-                For attributes and groups this shall be a simple regex on the
-                name of the attributes/groups. For variables it shall also
-                include a `filter_by_attrs()` call to search the `long_name` and
-                `standard_name` attributes.
+        http://unidata.github.io/netcdf4-python/netCDF4/index.html#section2
+
+        Args are ignored.
 
         Returns:
-            List of group names, with full path, or [] if nothing found.
-
+            List of group paths starting with the root, '/'.
         """
-        pass
-        # grpvar_func = lambda vlist: \
-        #     [os.path.join(_ds[v].path, v) if _ds!=ds else v for v in vlist]
+        def walktree(top):
+            values = top.groups.values()
+            yield values
+            for value in top.groups.values():
+                for children in walktree(value):
+                    yield children
 
-        # with Dataset(self.path, 'r') as ds:
-        #     # Should opening file be in calling method?
-        #     if grp in [None,'','/']:
-        #         _ds = ds
-        #     else:
-        #         try:
-        #             _ds = ds[grp]
-        #         except IndexError as err:
-        #             print(err)
-        #             return []
+        grps_list = ['/']
+        with Dataset(self.path, 'r') as nc:
+            for children in walktree(nc):
+                for child in children:
+                    grps_list.append(child.path)
 
-        #     if filterby:
-        #         grp_l = [g for g in _ds.groups.keys() if filterby.lower() in g.lower()]
-        #     else:
-        #         grp_l = list(_ds.groups.keys())
-
-        # return grpvar_func(grp_l)
+        return sorted(grps_list)
 
 
     def _get_grps(self, items, grp=None, filterby=None):
@@ -661,8 +641,8 @@ class NetCDFDataModel(DataModel):
                 /data_group group.
 
                 .. NOTE::
-                    what == 'attrs' is not very useful. Probably better to
-                    use `get` as will return None if attribute not found anyway.
+                    `what == 'attrs'` is not very useful. Probably better to
+                    use `get()`.
 
             grp (:obj:`str`): Path to single group, default is None or the
                 file root. This path is prepended to `what` in
@@ -677,8 +657,7 @@ class NetCDFDataModel(DataModel):
                 find('variables','water vapour') returns ['WVSS2F_VMR',
                 'WVSS2F_VMR_FLAG','VMR_CR2','VMR_CR2_FLAG','VMR_C_U',
                 'VMR_C_U_FLAG'] from the core nc file as 'water vapour' is
-                included in an attribute.
-
+                included in the variable attributes.
 
         Returns:
             List of variable, attribute, or group names or [] if nothing found.
@@ -699,8 +678,8 @@ class NetCDFDataModel(DataModel):
             return self._find_attrs('*', grp, filterby)
 
         elif what.lower() in GROUP_STRINGS:
-            raise NotImplementedError
-            #return self._find_grps(grp, filterby)
+            # Return all groups within file
+            return self._find_grps()
 
         elif what.lower() in DIMENSION_STRINGS:
             raise NotImplementedError
@@ -884,97 +863,10 @@ class NetCDFDataModel(DataModel):
                 self.time = ds[time_var[0]]
 
 
-
-    # def _get_groups(self, grp=None):
-    #     """Determines groups contained within grp of netCDF.
-
-    #     Any additional groups are appended to the list of groups contained in
-    #     self.groups. These strings are the complete paths.
-
-    #     Args:
-    #         grp (:obj:`str`): Path to single group within the nc file. If grp
-    #             in [None,'','/'] then returns subgroups of root. Default is
-    #             None.
-
-    #     Returns:
-    #         List of subgroup paths. These are the complete path from the root.
-    #         Returns empty list if no groups are found.
-
-    #     """
-    #     _groups = set(self.groups)
-
-    #     with Dataset(file, 'r') as ds:
-    #         if grp in [None,'','/']:
-    #             _groups.update([ds[g].path for g in ds.groups.keys()])
-    #         else:
-    #             try:
-    #                 _groups.update(
-    #                     [ds[grp][g].path for g in ds[grp].groups.keys()])
-    #             except IndexError as err:
-    #                 print(err)
-
-    #     self.groups = list(_groups)
-
-
-
-
-    # def _get_var(self, var, grp=None):
-    #     """Reads requested variable/s from file/group or None if nonexistant.
-
-    #     """
-
-    #     try:
-    #         ds = xr.open_dataset(self.path, group=grp) # self.file?
-    #     except OSError as err:
-    #         # Generally because grp is not a valid file group
-    #         print(err.errno)
-    #         return None
-
-    #     with ds:
-    #         # discard any variables that are not in ds
-    #         # this also discards any attributes
-    #         ds_var = ds[[v for v in var if v in ds]]
-    #         if len(ds_var.coords) == 0 or len(ds_var.data_vars) == 0:
-    #             return None
-
-    #     return ds_var
-
-    def __getitem__(self, item):
-
-
-        """
-        This uses _find_x() to filter and obtain full paths then passes this to
-        _get_x() to return results
-
-        """
-
-
-        return 'fred'
-
-    ### No workie!! __getitem__ cannot accept args
-
-    """
-    So __getitem__ will return data in a default structure based on what was
-    asked for. Write a series of getters that allow the user to include
-    arguments to request the desired output format.
-
-    """
-
-
     @property
-    def allgroups(self):
-        """Returns paths to all groups within a file
+    def ncgroups(self):
 
-        """
-
-        # haven't done this yet
-        def walktree(top):
-            values = top.groups.values()
-            yield values
-            for value in top.groups.values():
-                for children in walktree(value):
-                    yield children
-
+        return self._find_grps()
 
 
 class FltSumDataModel(DataModel):
