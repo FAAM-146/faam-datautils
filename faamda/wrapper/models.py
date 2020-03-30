@@ -889,7 +889,7 @@ class FltSumDataModel(DataModel):
         pass
 
     def _get_csv(self):
-        """ Reads csv flight summary and puts contents into self.fltsum
+        """ Reads .csv flight summary and puts contents into self.fltsum.
 
         """
         df = pd.read_csv(self.path,
@@ -911,33 +911,30 @@ class FltSumDataModel(DataModel):
 
         self.fltsum = df
 
-
-    def _get_runs(self):
-        """ Returns times of runs
-
-        """
-        pass
-
-    def _get_profiles(self):
-        """ Returns times of runs
+    def _get_txt(self):
+        """  Reads .txt flight summary and puts contents into self.fltsum.
 
         """
-        pass
+        raise NotImplementedError
+
 
     def get(self):
         """
-        Just returns the entire flight summary at the mo
+
         """
         try:
             self.fltsum
         except AttributeError as err:
-            self._get_csv()
-        finally:
-            return self.fltsum
+            if self.ext.lower() == 'csv':
+                self._get_csv()
+            elif self.ext.lower() == 'txt':
+                self._get_txt()
+
+        return self.fltsum
 
 
     def find(self):
         """
-
+        ??
         """
         pass
