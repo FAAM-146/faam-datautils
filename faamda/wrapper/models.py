@@ -89,7 +89,7 @@ class CoreNetCDFDataModel(DataModel):
             df = pd.DataFrame(index=self._time_at(max_freq))
 
             for item in items:
-                _data = nc[item][:].ravel()
+                _data = nc[item][:].ravel().astype(float)
                 _data[_data.mask] = np.nan
                 _time = self._time_at(self._get_freq(nc[item]))
                 df.loc[_time, item] = _data
