@@ -158,7 +158,7 @@ class CoreFltSumAccessor(DataAccessor):
     def ext(self, val):
         self._ext = val
 
-    def _get_maneuver(self, kind):
+    def _get_manoeuvre(self, kind):
         _fltsum = self.get()
         return [
             i for i in _fltsum
@@ -168,15 +168,15 @@ class CoreFltSumAccessor(DataAccessor):
 
     @property
     def runs(self):
-        return self._get_maneuver('run')
+        return self._get_manoeuvre('run')
 
     @property
     def profiles(self):
-        return self._get_maneuver('profile')
+        return self._get_manoeuvre('profile')
 
     @property
     def orbits(self):
-        return self._get_maneuver('orbit')
+        return self._get_manoeuvre('orbit')
 
     @property
     def nevzorov(self):
