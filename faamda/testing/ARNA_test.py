@@ -28,11 +28,11 @@ import sys
 FAAMDA_PATH = os.path.join(repo_path[_user_], 'faam-datautils')
 sys.path.insert(0,FAAMDA_PATH)
 
-CPPS_PATH = os.path.join(repo_path[_user_], 'cpps')
-sys.path.insert(0,CPPS_PATH)
+#CPPS_PATH = os.path.join(repo_path[_user_], 'cpps')
+#sys.path.insert(0,CPPS_PATH)
 
 from faamda.wrapper import FAAM
-import cpps
+#import cpps
 
 data_path = {'graeme': {'home': ['/home/graeme/Documents/work/ARNA-2/data'],
                         'work': glob.glob('/smb/faam-two/data/Data/cloudphysics/C224*') +
@@ -52,16 +52,36 @@ ccp_items = ['CDP_CONC','CDP_FLAG']     # Core Cloud nc3
 fred = faam[flight].core
 bob = faam[flight].ccp
 alice = faam[flight].ccpCIP15
+eve = faam[flight].fltsum
 
 pdb.set_trace()
 
 # Sort out proper test data files and turn into unit tests?
+
+# Test .__getitem__ for flt summary
+run_1a = eve['Run 1']
+run_1b = eve[pd.datetime(2020, 2, 11, 15, 10, 28)]
+run_1c = eve['20200211T15:10:28']
+
+# Test accessor methods for flt summary
+event_t = eve.get_event('20200211T1538','60 sec')
+time_e = eve.get_time('Run 1')
+
+try:
+    eve_df = eve.to_df()   # no workie
+except:
+    pass
+
+fltsum = eve.get()
+
 
 # Test non-existant group
 try:
     fred_find1 = fred.find('vars','fred')
 except IndexError as err:
     print(err)
+
+grps_find = alice.find('groups')
 
 # Test attribute find
 bob_find1 = bob.find('attrs')
