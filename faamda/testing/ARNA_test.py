@@ -73,7 +73,13 @@ except:
     pass
 
 fltsum = eve.get()
-
+pdb.set_trace()
+# Testing datetime index selecting
+# The PCASP and CDP have seperate time dimensions in spm
+# Default lookup selects first timestamp after start_time of Run 1 and
+# last timestamp before end_time of Run 1.
+bob_subset = bob[['PCAS2CON','CDP_CONC']].sel(PCAS2TSPM=eve.index('Run 1'),
+                                              CDP_TSPM=eve.index('Run 1'))
 
 # Test non-existant group
 try:
