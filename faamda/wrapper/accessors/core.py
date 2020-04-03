@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 from ..models import *
 from .register import register_accessor
@@ -198,16 +197,18 @@ class CoreFltSumAccessor(DataAccessor):
     def index(self, event):
         """ Returns a Datetime slice of event.
 
-        Use core_df.loc[flt_sum.index('event name')]
+        .. Example::
+            With a core pd.dataframe for example use,
+                `core_df.loc[flt_sum.index('event name')]`
+
+            With a core cloud xr.dataset for example use,
+                `ccp_ds.sel(time=flt_sum.index('event name'))`
 
         Note that DatetimeIndex.indexer_at_time() and
         DatetimeIndex.indexer_between_time() only deal with times, not
         datetimes for some reason.
         """
-
-        pdb.set_trace()
-
-        return slice(*self.get_event(event))
+        return slice(*self.get_time(event))
 
 
     def events_between(self,times):
