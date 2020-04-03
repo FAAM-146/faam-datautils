@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 from ..models import *
 from .register import register_accessor
@@ -183,3 +184,37 @@ class CoreFltSumAccessor(DataAccessor):
         return [i for i in self.runs if 'nevz' in i['comment'].lower()]
 
 
+    def get_event(self, time, within=None):
+
+        return self.model(self.file)._get_time_event(time, within)
+
+
+    def get_time(self, event):
+        """ Returns (start,stop), or (start,None), times of event.
+        """
+        return self.model(self.file)._get_event_time(event)
+
+
+    def index(self, event):
+        """ Returns a Datetime slice of event.
+
+        Use core_df.loc[flt_sum.index('event name')]
+
+        Note that DatetimeIndex.indexer_at_time() and
+        DatetimeIndex.indexer_between_time() only deal with times, not
+        datetimes for some reason.
+        """
+
+        pdb.set_trace()
+
+        return slice(*self.get_event(event))
+
+
+    def events_between(self,times):
+        """
+        Get mean of times and within = diff(times). However need to cope
+        with time strings etc
+        """
+        pass
+
+        #return self.model(self.file)._get_time_event(time, within)
