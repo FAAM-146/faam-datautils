@@ -340,7 +340,7 @@ class NetCDFDataModel(DataModel):
         """
         ds = self._get_vars(items, grp, filterby)
         if ds is None:
-            return None
+            return {}
 
         # If ds empty then returns {}.
         # Search for standard variable description attributes. If none
@@ -416,7 +416,7 @@ class NetCDFDataModel(DataModel):
                                compat='identical')
 
         if len(rds.coords) == 0 and len(rds.data_vars) == 0:
-            return None
+            return xr.Dataset()
 
         if len(rds.coords) != len(rds.dims):
             # Coordinates are in a parent group so need to find
