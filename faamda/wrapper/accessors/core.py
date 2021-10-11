@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 from ..models import *
 from .register import register_accessor
@@ -14,6 +15,18 @@ class CoreAccessor(DataAccessor):
     regex = ('^core_faam_(?P<date>[0-9]{8})_v00(?P<version>[0-9])_'
               'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_'
               '?(?P<freq>[1-9]*)h?z?.nc$')
+
+    @property
+    def takeoff_time(self):
+        wow = self['WOW_IND']
+        diff = (wow - wow.shift())['WOW_IND']
+        return diff.loc[diff == -1].index[-1].to_pydatetime()
+
+    @property
+    def landing_time(self):
+        wow = self['WOW_IND']
+        diff = (wow - wow.shift())['WOW_IND']
+        return diff.loc[diff == 1].index[-1].to_pydatetime()
 
     def slrs(self, min_length=120, max_length=None, roll_lim=3, ps_lim=2,
              roll_mean=5, freq=1):
