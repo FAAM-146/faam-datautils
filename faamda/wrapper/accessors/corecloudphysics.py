@@ -69,3 +69,24 @@ class CoreCloudPhysicsCASAccessor(DataAccessor):
     model = NetCDFDataModel
     regex = ('^core-cloud-phy_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
              'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_cas.nc$')
+
+@register_accessor
+class CoreCloudPhysicsCDPcalAccessor(DataAccessor):
+    """Accessor for Core Cloud Physics CDP calibration nc file
+
+    """
+    hook = 'ccpCDPcal'
+    model = NetCDFDataModel
+    regex = ('^(?P<flightnum>CDP-?[0-1])_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
+             'r(?P<revision>[0-9]+)_cal.nc$')
+
+@register_accessor
+class CoreCloudPhysicsPCASPcalAccessor(DataAccessor):
+    """Accessor for Core Cloud Physics PCASP calibration nc file
+
+    """
+    hook = 'ccpPCASPcal'
+    model = NetCDFDataModel
+    regex = ('^(?P<flightnum>PCASP-?[0-1])_faam_(?P<date>[0-9]{8})_v(?P<version>[0-9]{3})_'
+             'r(?P<revision>[0-9]+)_cal.nc$')
+
