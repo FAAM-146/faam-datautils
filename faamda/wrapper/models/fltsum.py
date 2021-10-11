@@ -1,4 +1,5 @@
 import csv
+import re
 import datetime
 
 import pandas as pd
@@ -11,6 +12,25 @@ __all__ = ['FltSumDataModel']
 class FltSumDataModel(DataModel):
     """
     This is the data model for the models.CoreFltSumAccessor()
+
+    The flight summary data model produces a list of ordered dictionaries, one
+    for each event in the flight summary. The structure of each dictionary is;
+
+    ..codeblock::
+        OrderedDict(
+          [('event', descriptive text of event, eg 'Run 2'),
+           ('start_time', datetime.datetime of start of event),
+           ('start_hdg', float of degrees heading at start of event),
+           ('start_height', float of pressure height [kft] at start of event),
+           ('start_lat', float of latitude [N] at start of event),
+           ('start_lon', float of longitude [E] at start of event),
+           ('stop_time', datetime.datetime of end of event or None),
+           ('stop_hdg', float of degrees heading at end of event or None),
+           ('stop_height', float of pressure height [kft] at end of event or None),
+           ('stop_lat', float of latitude [N] at end of event or None),
+           ('stop_lon', float of longitude [E] at end of event or None),
+           ('comment': string comment)])
+
 
     """
     def __enter__(self):
@@ -86,11 +106,107 @@ class FltSumDataModel(DataModel):
         return sorted(ret_list[1:], key=lambda x: x['start_time'])
 
 
-    def _get_txt(self):
+    def _get_txt(self, metarows=9, fltdate=None, **kwargs):
         """  Reads .txt flight summary and puts contents into self.fltsum.
 
+        Note that the text flight summaries were originally somewhat free-form.
+        The metadata was not filled out consistently. The main issue that this
+        causes is that the date may not be able to be parsed correctly, eg
+        the year is missing.
+
+        Args:
+            metarows (:obj: `int`): Number of header lines to skip before the
+                first row of data. Default is 9.
+            fltdate (:obj: `date` or `str`): The date is required to combine
+                with the start and stop timestamps to create a datetime obj.
+                This can be obtained from the metadata however it can be
+                specified in ``fltdate`` if required. The default is ``None``
+                which forces the metadata date to be used, if this cannot be
+                parsed a ``ValueError`` will be raised.
+            **kwargs: User can change or add columns to be read from the
+                text file using kwargs. The key is the column name and the
+                value is a tuple of fixed width interval. Note that changing
+                and left hand column width will probably change column
+                intervals to the right.
+
+        ..TODO::
+            ``_fieldnames`` is a dictionary of column names and intervals.
+            The order of the names is the order in which they are read. There
+            is currently no means for the user to modify the order.
+
         """
-        raise NotImplementedError
+
+        # Define column heading names and associated fixed column widths
+        _fieldnames = {'start_time': (0,6),
+                       'stop_time': (8,14),
+                       'event': (17,35),
+                       'start_height': (37,52),
+                       'start_hdg': (55,58),
+                       'comment': (59,-1),
+                       'stop_height': None,
+                       'stop_hdg': None,
+                       'start_lat': None,
+                       'stop_lat': None,
+                       'start_lon': None,
+                       'stop_lon': None}
+
+        # Update any default column widths with user-supplied kwargs
+        for k,v in kwargs.items():
+            _fieldnames[k].update(v)
+
+        # Read metadata from top of text file
+        metaregex = {'flightnum': '^flight.*?(?P<flightnum>[a-z]\d{3})', # flight number
+                     'date': '^date:.*?(?P<date>.*)',                    # date, any format
+                     'project': '^project:.*?(?P<project>.*)',           # project name
+                     'location': '^location:.*?(?P<location>.*)'}        # location
+        _metadata = {}
+
+        with open(self.path, 'r') as _txt:
+            for row in range(metarows-2):
+                _metaline = _txt.readline()
+                for k, reg in metaregex.items():
+                    metaval = re.search(reg, _metaline, flags=re.I)
+                    if metaval is None:
+                        continue
+                    else:
+                        _ = _metadata.setdefault(k, metaval.group(k))
+                        break
+
+        if fltdate != None:
+            date = pd.to_datetime(fltdate, errors='coerce').date()
+        else:
+            date = pd.to_datetime(_metadata['date'], errors='coerce').date()
+
+        if pd.isnull(date) == True:
+            raise ValueError('Invalid date format given in flight summary.')
+
+        # Read the main tablulated data
+        with open(self.path, 'r') as _txt:
+            table = pd.read_fwf(_txt,
+                skiprows=metarows,
+                names=[f for f,t in _fieldnames.items() if t != None],
+                colspecs=[t for t in _fieldnames.values() if t != None],
+                skipinitialspace=True,
+                index_col=False,
+                parse_dates=['start_time', 'stop_time'],
+                date_parser=lambda t: datetime.datetime.combine(
+                                date,
+                                pd.to_datetime(t, format='%H%M%S').time()))
+
+        # Convert 'comment' NaNs to empty strings
+        table['comment'] = table['comment'].fillna('')
+
+        # Convert df to list of dictionaries
+        ### NOTE: creates regular dict not OrderedDict as _get_csv() does
+        ### there doesn't seem a lot of point to an ordere dict but if one is
+        ### required then do;
+        ###     from collections import OrderedDict
+        ###     ret_list = table.to_dict(orient='records', into=OrderedDict)
+        ret_list = table.to_dict(orient='records')
+
+        self.metadata = _metadata
+
+        return sorted(ret_list, key=lambda x: x['start_time'])
 
 
     def _get_time_event(self, time, within=pd.Timedelta(seconds=60)):
