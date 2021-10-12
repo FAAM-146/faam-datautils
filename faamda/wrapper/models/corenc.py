@@ -127,7 +127,8 @@ class CoreNetCDFDataModel(DataModel):
             try:
                 self.time_calendar = nc['Time'].calendar
             except AttributeError:
-                self.time_calendar = None
+                # At netCDF4 v1.5.7 this is the default calendar
+                self.time_calendar = 'standard'
 
     def __enter__(self):
         self.handle = Dataset(self.path, 'r')
