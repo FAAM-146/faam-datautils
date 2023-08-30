@@ -421,7 +421,17 @@ class NetCDFDataModel(DataModel):
         if len(rds.coords) != len(rds.dims):
             # Coordinates are in a parent group so need to find
             rds_coords = self._parent_coords(list(rds.keys()), grp)
-            rds = xr.merge([rds,rds_coords])
+            try:
+                rds = xr.merge([rds,rds_coords])
+            except TypeError as err:
+                # Sometimes the rds_coords is a DatasetCoordinates object
+                # these cannot be merged with a Dataset.
+                # This seems to occur with 'wrong' coordinates in v6xx core
+                # cloud netCDFs
+                # No error checking is done with .update so errors may occur
+                # warnings.warn('xr.merge() failed so falling back to .update(). '
+                #               'No internal error checking is done.')
+                rds.update(rds_coords)
 
         return rds
 
@@ -591,6 +601,7 @@ class NetCDFDataModel(DataModel):
         # Determine item types for each group, ignore if inconsistent types
         # within a single group
         grp_types = []
+
         with Dataset(self.path, 'r') as _ds:
             for _grp, _items in zip(grps, grp_items):
                 if _grp == '':
