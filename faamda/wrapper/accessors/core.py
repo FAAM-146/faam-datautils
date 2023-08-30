@@ -14,7 +14,7 @@ class CoreAccessor(DataAccessor):
     hook = 'core'
     regex = ('^core_faam_(?P<date>[0-9]{8})_v00(?P<version>[0-9])_'
               'r(?P<revision>[0-9]+)_(?P<flightnum>[a-z][0-9]{3})_'
-              '?(?P<freq>[1-9]*)h?z?.nc$')
+              '?(?P<freq>[1-9]*)h?z?(_prelim)?.nc$')
 
     @property
     def takeoff_time(self):
@@ -30,6 +30,19 @@ class CoreAccessor(DataAccessor):
 
     def slrs(self, min_length=120, max_length=None, roll_lim=3, ps_lim=2,
              roll_mean=5, freq=1):
+        """
+
+        Args:
+            min_length: minimum time in seconds over which the aircraft must
+                remain straight and level. Default 120 seconds.
+            max_length: maximum time in seconds over which to classify as a run
+            roll_lim: value of roll in degrees (after running avg of window
+                length roll_mean) that is threshold for SLR
+            ps_lim: value of variation in static pressure in hPa over the
+                min_length time that is the threshold for SLR. .std() must be
+                smaller than ps_lim for to be classified as SLR.
+
+        """
 
         def _add_slrs(slrs, group):
             _gdf = group[1]
