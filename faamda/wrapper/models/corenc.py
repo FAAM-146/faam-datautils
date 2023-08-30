@@ -47,11 +47,15 @@ class CoreNetCDFDataModel(DataModel):
             df = pd.DataFrame(index=self._time_at(max_freq))
 
             for item in items:
-                _data = nc[item][:].ravel().astype(float)
-                _data[_data.mask] = np.nan
-                _time = self._time_at(self._get_freq(nc[item]))
-                df.loc[_time, item] = _data
 
+                _data = pd.Series(nc[item][:].ravel().astype(float),
+                                  index=self._time_at(self._get_freq(nc[item])))
+                df[item] = _data.reindex_like(df, method='bfill', limit=1)
+
+                # _data = nc[item][:].ravel().astype(float)
+                # _data[_data.mask] = np.nan
+                # _time = self._time_at(self._get_freq(nc[item]))
+                # df.loc[_time, item] = _data
         return df
 
     def _get_attrs(self, items):
