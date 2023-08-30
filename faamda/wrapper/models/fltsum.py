@@ -88,12 +88,23 @@ class FltSumDataModel(DataModel):
 
         for item in ret_list[1:]:
             for var in ('start_time', 'stop_time'):
-                if not item[var]:
+                try:
+                    item[var] = datetime.datetime.strptime(
+                                            item[var], '%Y-%m-%d %H:%M:%S')
+                except KeyError as err:
                     item[var] = None
                     continue
-                item[var] = datetime.datetime.strptime(
-                    item[var], '%Y-%m-%d %H:%M:%S'
-                )
+                except ValueError as err:
+                    try:
+                        item[var] = datetime.datetime.strptime(
+                                            item[var], '%Y-%m-%d %H:%M')
+                    except ValueError as err:
+                        try:
+                            item[var] = datetime.datetime.strptime(
+                                            item[var], '%Y-%m-%d %H')
+                        except Exception as err:
+                            item[var] = None
+                            continue
 
             for var_t in ('start', 'stop'):
                 for var_o in ('hdg', 'height', 'lat', 'lon'):
