@@ -115,6 +115,9 @@ class NetCDFDataModel(DataModel):
             coords_req = ds.coords
             dims_req = ds[items].dims
 
+        import pdb
+        pdb.set_trace()
+
         while len(coords_req) < len(dims_req):
             # Step up one level in path
             try:
@@ -418,9 +421,9 @@ class NetCDFDataModel(DataModel):
         if len(rds.coords) == 0 and len(rds.data_vars) == 0:
             return xr.Dataset()
 
-        if len(rds.coords) != len(rds.dims):
-            # Coordinates are in a parent group so need to find
-            rds_coords = self._parent_coords(list(rds.keys()), grp)
+        if set(rds.coords) != set(rds.dims):
+            # Some coordinates are in a parent group so need to find
+            rds_coords = self._parent_coords(list(rds), grp)
             try:
                 rds = xr.merge([rds,rds_coords])
             except TypeError as err:
