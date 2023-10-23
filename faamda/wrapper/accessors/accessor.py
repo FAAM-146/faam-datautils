@@ -19,21 +19,64 @@ class DataAccessor(object):
     def __getitem__(self, item):
         return self.model(self.file)[item]
 
+    def _autoset_version(self):
+        try:
+            self._version = max([i.version for i in self._files])
+        except (TypeError, ValueError):
+            pass
+        else:
+            self._autoset_revision()
+
+    def _autoset_revision(self):
+        try:
+            self._revision = max(
+                    [i.revision for i in self._filtered_files(revision=None,
+                                                              freq=None)]
+                    )
+        except (TypeError, ValueError):
+            pass
+
+    def _autoset_freq(self):
+        try:
+            self._freq = max([i.freq for i in self.filtered_files])
+        except (TypeError, ValueError):
+            pass
+
     def _autoset_file(self):
-        try:
-            self._version = max([i.version for i in self._filtered_files])
-        except (TypeError, ValueError):
-            pass
+        self._autoset_version()
+        self._autoset_revision()
+        self._autoset_freq()
 
-        try:
-            self._revision = max([i.revision for i in self._filtered_files])
-        except (TypeError, ValueError):
-            pass
+    def _filtered_files(self, **kwargs):
+        """Creates list of files in self._files that satisfy condition/s
 
-        try:
-            self._freq = max([i.freq for i in self._filtered_files])
-        except (TypeError, ValueError):
-            pass
+        Args:
+            **kwargs: Any combination of attribute values, with names as are
+                given in self.fileattrs. If not given [default] then the
+                instance attribute is used, if explicitly given as ``None``
+                (or similar) then condition is not used as a filter, or if
+                a specific value is used then is used to filter files in
+                ``self._files``.
+
+        Returns:
+            List of full path and filenames of files. The first filename is
+            the one operated on (and returned by ``self.file``).
+        """
+        _files = self._files
+
+        for attr in self.fileattrs:
+            attr_val = kwargs.pop(attr, getattr(self, attr))
+            if attr_val in [None, [], '']:
+                # Do not filter on this attr
+                continue
+
+            # Filter with each loop so are ANDing the attr requirements
+            _files = list(filter(lambda x: getattr(x, attr) == attr_val,
+                                 _files
+                                ))
+
+        return list(_files)
+
 
     def get(self, *args, **kwargs):
         """
@@ -60,17 +103,9 @@ class DataAccessor(object):
             yield h
 
     @property
-    def _filtered_files(self):
-        _files = self._files
-        for attr in self.fileattrs:
-
-            if getattr(self, attr) is not None:
-                _files = list(filter(
-                    lambda x: getattr(x, attr) == getattr(self, attr),
-                    _files
-                ))
-
-        return list(_files)
+    def filtered_files(self):
+        """Return list of filename/s that satisfy ``self.fileattrs`` values"""
+        return self._filtered_files()
 
     @property
     def version(self):
@@ -78,11 +113,17 @@ class DataAccessor(object):
 
     @version.setter
     def version(self, version):
+        """Set version, if current revision is invalid then reset"""
         _version = self._version
         self._version = version
-        if not self._filtered_files:
+        if not self.filtered_files:
+            # Attempt to reset revision number for this version
+            self._autoset_revision()
+        if not self.filtered_files:
             self._version = _version
-            raise Exception('cannae do it')
+            raise ValueError(f"No version v{version} files found.")
+        else:
+            pass
 
     @property
     def revision(self):
@@ -90,7 +131,11 @@ class DataAccessor(object):
 
     @revision.setter
     def revision(self, revision):
+        _revision = self._revision
         self._revision = revision
+        if not self.filtered_files:
+            self._revision = _revision
+            raise ValueError(f"No r{revision} of v{self._version} files found.")
 
     @property
     def freq(self):
@@ -111,15 +156,8 @@ class DataAccessor(object):
 
     @property
     def file(self):
-        _files = self._files
-
-        for attr in self.fileattrs:
-            if getattr(self, attr) is not None:
-                _files = list(filter(
-                    lambda x: getattr(x, attr) == getattr(self, attr),
-                    _files
-                ))
-
+        """ Return the file that is currently selected to operate on """
+        _files = self.filtered_files
         if len(_files) > 1:
             print('warning: duplicate files')
 
