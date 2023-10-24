@@ -115,9 +115,6 @@ class NetCDFDataModel(DataModel):
             coords_req = ds.coords
             dims_req = ds[items].dims
 
-        import pdb
-        pdb.set_trace()
-
         while len(coords_req) < len(dims_req):
             # Step up one level in path
             try:
