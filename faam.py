@@ -296,7 +296,7 @@ class FAAMFlight(object):
         import subprocess
         df = self[['LAT_GIN', 'LON_GIN', 'ALT_GIN', 'WOW_IND']]
 
-        df = df.asfreq('1S')
+        df = df.asfreq('1s')
         df[df['WOW_IND'] == 1] = np.nan
         df.dropna(inplace=True)
 
