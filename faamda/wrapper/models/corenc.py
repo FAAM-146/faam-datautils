@@ -119,7 +119,7 @@ class CoreNetCDFDataModel(DataModel):
         index = pd.date_range(
             start=time_start,
             end=time_end,
-            freq='{0:0.0f}N'.format(1e9/freq)
+            freq='{0:0.0f}ns'.format(1e9/freq)
         )
 
         return index[:-1]
