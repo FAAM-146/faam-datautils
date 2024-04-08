@@ -64,7 +64,7 @@ class CoreAccessor(DataAccessor):
         if max_length is not None and max_length < min_length:
             raise ValueError('max_length must be >= min_length')
 
-        _df = self[['WOW_IND', 'PS_RVSM', 'ROLL_GIN']].asfreq('1S')
+        _df = self[['WOW_IND', 'PS_RVSM', 'ROLL_GIN']].asfreq('1s')
 
         # Drop an data on the ground
         _df.loc[_df.WOW_IND == 1] = np.nan
@@ -98,13 +98,13 @@ class CoreAccessor(DataAccessor):
             _add_slrs(slrs, group)
 
         # Return a list of indicies, at required freq
-        return [i.asfreq('{0:0.0f}N'.format(1e9/freq)).index for i in slrs]
+        return [i.asfreq('{0:0.0f}ns'.format(1e9/freq)).index for i in slrs]
 
     def profiles(self, min_length=60):
         rolling = 60
         thresh = 0.15
 
-        _df = self[['PS_RVSM', 'WOW_IND']].asfreq('1S')
+        _df = self[['PS_RVSM', 'WOW_IND']].asfreq('1s')
         _df = _df[_df.WOW_IND == 0]
         _df['profile_down'] = 0
         _df['profile_down'].loc[
