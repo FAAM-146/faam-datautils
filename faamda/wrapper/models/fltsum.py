@@ -150,8 +150,8 @@ class FltSumDataModel(DataModel):
         # Define column heading names and associated fixed column widths
         _fieldnames = {'start_time': (0,6),
                        'stop_time': (8,14),
-                       'event': (17,35),
-                       'start_height': (37,52),
+                       'event': (17,36),
+                       'start_height': (37,54),
                        'start_hdg': (55,58),
                        'comment': (59,-1),
                        'stop_height': None,
@@ -184,9 +184,11 @@ class FltSumDataModel(DataModel):
                         break
 
         if fltdate != None:
-            date = pd.to_datetime(fltdate, errors='coerce').date()
+            date = pd.to_datetime(fltdate,
+                                  errors='coerce', dayfirst=True).date()
         else:
-            date = pd.to_datetime(_metadata['date'], errors='coerce').date()
+            date = pd.to_datetime(_metadata['date'],
+                                  errors='coerce', dayfirst=True).date()
 
         if pd.isnull(date) == True:
             raise ValueError('Invalid date format given in flight summary.')
